@@ -17,6 +17,7 @@
 
 typedef int8_t local_id;
 typedef int16_t timestamp_t;
+typedef int32_t pipe_fd;
 
 enum {
     MESSAGE_MAGIC = 0xAFAF,
@@ -26,15 +27,10 @@ enum {
 };
 
 typedef enum {
-    STARTED = 0,     ///< message with string (doesn't include trailing '\0')
-    DONE,            ///< message with string (doesn't include trailing '\0')
-    ACK,             ///< empty message
-    STOP,            ///< empty message
-    TRANSFER,        ///< message with TransferOrder
-    BALANCE_HISTORY, ///< message with BalanceHistory
-    CS_REQUEST,      ///< empty message
-    CS_REPLY,        ///< empty message
-    CS_RELEASE       ///< empty message
+    PARENT_CONTROL = 0,
+    CONSOLE_CONTROL,
+    LINK,
+    STOP
 } MessageType;
 
 typedef struct {
@@ -58,18 +54,6 @@ typedef struct {
 
 //------------------------------------------------------------------------------
 
-/** Send a message to the process specified by id.
- *
- * @param self    Any data structure implemented by students to perform I/O
- * @param dst     ID of recepient
- * @param msg     Message to send
- *
- * @return 0 on success, any non-zero value on error
- */
-int send(void * self, local_id dst, const Message * msg);
-
-//------------------------------------------------------------------------------
-
 /** Send multicast message.
  *
  * Send msg to all other processes including parrent.
@@ -81,20 +65,6 @@ int send(void * self, local_id dst, const Message * msg);
  * @return 0 on success, any non-zero value on error
  */
 int send_multicast(void * self, const Message * msg);
-
-//------------------------------------------------------------------------------
-
-/** Receive a message from the process specified by id.
- *
- * Might block depending on IPC settings.
- *
- * @param self    Any data structure implemented by students to perform I/O
- * @param from    ID of the process to receive message from
- * @param msg     Message structure allocated by the caller
- *
- * @return 0 on success, any non-zero value on error
- */
-int receive(void * self, local_id from, Message * msg);
 
 //------------------------------------------------------------------------------
 
@@ -110,6 +80,9 @@ int receive(void * self, local_id from, Message * msg);
  * @return 0 on success, any non-zero value on error
  */
 int receive_any(void * self, Message * msg);
+
+int32_t write_pipe(pipe_fd to, const Message* const msg);
+int32_t read_pipe(pipe_fd from, Message* const msg);
 
 //------------------------------------------------------------------------------
 

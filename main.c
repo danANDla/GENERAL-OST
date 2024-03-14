@@ -1,9 +1,10 @@
-#include "core/segment.h"
-#include "utils/payload_io.h"
+#include "spwstub/spw_node.h"
 
 int main() {
-    struct Segment s = {.seq_number = 0, .payload_length = 10, .payload = 0};
-    generate_payload(&s);
-    print_payload(&s);
-    print_is_ack(&s);
+    struct SpWInterface interface = {
+        .state = OFF,
+        .auto_start = false
+    };
+    powerup_link(&interface, -1, -1);
+    start_link(&interface);
 }

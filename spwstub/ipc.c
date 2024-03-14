@@ -1,58 +1,45 @@
 #include "ipc.h"
 #include "interprocess.h"
 
+#include <complex.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/errno.h>
 
-int send(void * self, local_id dst, const Message * msg){
-    ch_process* pr = (ch_process*) self;
-    if(pr->is_rx) return -1;
 
-    int32_t fd_to_write = pr->outer;
-    if(fd_to_write == 0) return -1;
-
-    int w = write(fd_to_write, msg, sizeof(MessageHeader) + msg->s_header.s_payload_len);
+int32_t write_pipe(pipe_fd to, const Message* const msg) {
+    int w = write(to, msg, sizeof(MessageHeader) + msg->s_header.s_payload_len);
     if(w == -1) {
         return -1;
     }
     return 0;
 }
 
-
-
-int receive(void * self, local_id from, Message * msg){
-    ch_process* pr = (ch_process*) self;
-
-    int32_t fd_to_read = pr->to_parent_read;
-    if(from != 0)
-        fd_to_read = pr->outer;
-
+int32_t read_pipe(pipe_fd from, Message* const msg) {
     MessageHeader msg_header;
-    int head_bytes = read(fd_to_read, &msg_header, sizeof(MessageHeader));
+    int head_bytes = read(from, &msg_header, sizeof(MessageHeader));
     if(head_bytes != sizeof(MessageHeader) || head_bytes == -1) return 1; // empty
 
     msg->s_header = msg_header;
 
-    int msg_bytes = read(fd_to_read, msg->s_payload, msg_header.s_payload_len);
+    int msg_bytes = read(from, msg->s_payload, msg_header.s_payload_len);
     if(msg_bytes != msg_header.s_payload_len || msg_bytes == -1) {
         printf("is -1, but type is %d, len %d", msg->s_header.s_type, msg->s_header.s_payload_len);
         return -1;
     }
-
     return head_bytes + msg_bytes;
 }
 
-
-int receive_any(void * self, Message * msg){
-    ch_process* pr = (ch_process*) self;
-    int r = receive(self, 0, msg);
+int32_t receive_any(void * self, Message * msg){
+    ChildProcess* pr = (ChildProcess*) self;
+    int32_t r = read_pipe(pr->from_parent_read, msg);
     if(r == 1) {
         if(pr->is_rx) {
-            int r = receive(self, 1, msg);
+            int r = read_pipe(pr->outer, msg);
             if(r == 1) return 1;
             return r;
         }
+        return 1;
     }
     return r;
 }

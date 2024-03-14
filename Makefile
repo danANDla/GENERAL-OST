@@ -6,7 +6,7 @@ BUILD_DIR ?= ./build
 DEBUG_DIR ?= ./debug
 SRC_DIRS ?= /
 
-SRCS := main.c utils/payload_io.c core/segment.c
+SRCS := main.c utils/payload_io.c core/segment.c $(wildcard spwstub/*.c)
 TEST_ARG := ""
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
