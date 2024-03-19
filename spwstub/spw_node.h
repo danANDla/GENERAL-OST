@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "interprocess.h"
 #include "ipc.h"
 
 #ifndef SPW_NODE_HPP
@@ -11,7 +10,7 @@
 enum SpWState {
     OFF = 0,
     ERROR_RESET,
-    ERROR_WIAT,
+    ERROR_WAIT,
     READY,
     STARTED,
     CONNECTING,
@@ -25,7 +24,7 @@ typedef struct {
     uint32_t size;
 } Fifo;
 
-struct SpWInterface {
+typedef struct {
     uint32_t id;
     bool auto_start;
     enum SpWState state;
@@ -39,10 +38,10 @@ struct SpWInterface {
     pipe_fd from_tx_read;
     pipe_fd to_console_write;
     pipe_fd from_console_read;
-};
+} SpWInterface;
 
-void start_link(struct SpWInterface* interface);
-void powerup_link(struct SpWInterface* spw_int, pipe_fd tx, pipe_fd rx);
-void stop_interface(struct SpWInterface* const spw_int);
+void start_link(SpWInterface* interface);
+void powerup_link(SpWInterface* spw_int, pipe_fd tx, pipe_fd rx);
+void stop_interface(SpWInterface* const spw_int);
 
 #endif

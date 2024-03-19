@@ -12,6 +12,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 //------------------------------------------------------------------------------
 
@@ -85,5 +86,20 @@ int32_t write_pipe(pipe_fd to, const Message* const msg);
 int32_t read_pipe(pipe_fd from, Message* const msg);
 
 //------------------------------------------------------------------------------
+
+typedef struct {
+    bool is_rx;
+    uint64_t pid;
+    uint64_t ppid;
+
+    pipe_fd from_parent_read;
+    pipe_fd to_parent_write;
+    pipe_fd outer;
+} ChildProcess;
+
+void sender_duty();
+int32_t rx_duty(ChildProcess *pr);
+int32_t tx_duty(ChildProcess *pr);
+int32_t console_duty(ChildProcess *pr);
 
 #endif // __IFMO_DISTRIBUTED_CLASS_IPC__H
