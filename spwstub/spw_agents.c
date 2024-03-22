@@ -16,8 +16,7 @@ int32_t rx_duty(ChildProcess *pr) {
         if(r == 1) continue;
         if(r == -1) return -1;
     }
-    Message start_msg = {.s_header = {.s_payload_len = 0, .s_type = START}};
-    write_pipe(pr->to_parent_write, &start_msg);
+    write_pipe(pr->to_parent_write, &DEFAULT_START_MESSAGE);
     pr->state = STARTED_STATE;
     printf("[RX] Listening for outer rx %d\n", pr->outer);
 
@@ -58,7 +57,17 @@ int32_t tx_duty(ChildProcess *pr) {
     printf("[TX] started duty\n");
     Message msg;
     msg.s_header.s_type = -1;
-        printf("[TX] Listening for parent %d and writing outer tx %d\n", pr->from_parent_read, pr->outer);
+    printf("[TX] Listening for parent %d\n", pr->from_parent_read);
+
+    while(msg.s_header.s_type != START) {
+        int32_t r = poll_parent(pr, &msg);
+        if(r == 1) continue;
+        if(r == -1) return -1;
+    }
+    write_pipe(pr->to_parent_write, &DEFAULT_START_MESSAGE);
+    pr->state = STARTED_STATE;
+    printf("[TX] Ready for writing outer tx %d\n",pr->outer);
+
     while(msg.s_header.s_type != STOP){
         int r = poll_parent(pr, &msg);
         if(r == -1) {
@@ -76,6 +85,7 @@ int32_t tx_duty(ChildProcess *pr) {
             return -1;
         }
     }
+    pr->state = STOPED_STATE;
     printf("[TX] finished duty\n");
     Message stop =  {.s_header = {.s_type = STOP}};
     write_pipe(pr->to_parent_write, &stop);

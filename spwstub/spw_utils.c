@@ -131,28 +131,20 @@ int32_t wait_started(const SpWInterface * const spw_int, const pipe_fd from) {
 }
 
 void stop_agents(const SpWInterface* const spw_int) {
-    Message stop_msg = {
-        .s_header = {
-            .s_magic = MESSAGE_MAGIC,
-            .s_payload_len = 0,
-            .s_type = STOP,
-        }
-    };
-    write_pipe(spw_int->to_tx_write, &stop_msg);
-    write_pipe(spw_int->to_rx_write, &stop_msg);
+    write_pipe(spw_int->to_tx_write, &DEFAULT_STOP_MESSAGE);
+    write_pipe(spw_int->to_rx_write, &DEFAULT_STOP_MESSAGE);
     wait_all_stop(spw_int);
 }
 
 int32_t enable_rx(SpWInterface* const spw_int) {
-    Message start_msg = {
-        .s_header = {
-            .s_magic = MESSAGE_MAGIC,
-            .s_payload_len = 0,
-            .s_type = START,
-        }
-    };
-    write_pipe(spw_int->to_rx_write, &start_msg);
+    write_pipe(spw_int->to_rx_write, &DEFAULT_START_MESSAGE);
     if(wait_started(spw_int, spw_int->from_rx_read) != 0) return -1; 
+    return 0;
+}
+
+int32_t enable_tx(SpWInterface* const spw_int) {
+    write_pipe(spw_int->to_tx_write, &DEFAULT_START_MESSAGE);
+    if(wait_started(spw_int, spw_int->from_tx_read) != 0) return -1; 
     return 0;
 }
 

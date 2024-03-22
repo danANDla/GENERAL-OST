@@ -54,6 +54,9 @@ typedef struct {
                                      ///< shouldn't be transfered
 } __attribute__((packed)) Message;
 
+extern Message DEFAULT_START_MESSAGE;
+extern Message DEFAULT_STOP_MESSAGE;
+
 //------------------------------------------------------------------------------
 
 /** Send multicast message.

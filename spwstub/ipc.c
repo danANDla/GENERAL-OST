@@ -6,6 +6,22 @@
 #include <unistd.h>
 #include <sys/errno.h>
 
+Message DEFAULT_START_MESSAGE =  {
+    .s_header = {
+        .s_magic = MESSAGE_MAGIC,
+        .s_payload_len = 0,
+        .s_type = START,
+    }
+};
+
+Message DEFAULT_STOP_MESSAGE =  {
+    .s_header = {
+        .s_magic = MESSAGE_MAGIC,
+        .s_payload_len = 0,
+        .s_type = STOP,
+    }
+};
+
 int32_t write_pipe(pipe_fd to, const Message* const msg) {
     int w = write(to, msg, sizeof(MessageHeader) + msg->s_header.s_payload_len);
     if(w == -1) {

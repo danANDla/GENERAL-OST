@@ -9,6 +9,7 @@ void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx);
 void close_pipes(const SpWInterface* const spw_int);
 void create_forks(SpWInterface* const spw_int);
 int32_t enable_rx(SpWInterface* const spw_int);
+int32_t enable_tx(SpWInterface* const spw_int);
 int32_t poll_children(SpWInterface* const spw_int, Message* msg);
 int32_t poll_parent(void *self, Message* msg);
 int32_t poll_rx(void* self, Packet* packet);

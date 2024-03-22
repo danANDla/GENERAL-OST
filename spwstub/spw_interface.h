@@ -41,7 +41,7 @@ typedef struct {
 } SpWInterface;
 
 void start_link(SpWInterface* const interface);
-void powerup_link(SpWInterface* spw_int, pipe_fd tx, pipe_fd rx);
+void powerup_link(SpWInterface* const spw_int, const pipe_fd tx, const pipe_fd rx);
 void stop_interface(SpWInterface* const spw_int);
 
 #endif
