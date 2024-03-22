@@ -1,6 +1,10 @@
 #include "spw_utils.h"
+#include "ipc.h"
+#include "spw_interface.h"
+#include "spw_packet.h"
 
 #include <fcntl.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -116,6 +120,16 @@ int32_t wait_all_stop(const SpWInterface* const spw_int) {
     return 0;
 }
 
+int32_t wait_started(const SpWInterface * const spw_int, const pipe_fd from) {
+    Message msg = {.s_header = {.s_type = STOP}}; 
+    while (msg.s_header.s_type != START) {
+            int32_t r = read_pipe(from, &msg);
+            if(r == 1) continue;
+            if(r == -1) return -1;
+    }
+    return 0;
+}
+
 void stop_agents(const SpWInterface* const spw_int) {
     Message stop_msg = {
         .s_header = {
@@ -127,6 +141,19 @@ void stop_agents(const SpWInterface* const spw_int) {
     write_pipe(spw_int->to_tx_write, &stop_msg);
     write_pipe(spw_int->to_rx_write, &stop_msg);
     wait_all_stop(spw_int);
+}
+
+int32_t enable_rx(SpWInterface* const spw_int) {
+    Message start_msg = {
+        .s_header = {
+            .s_magic = MESSAGE_MAGIC,
+            .s_payload_len = 0,
+            .s_type = START,
+        }
+    };
+    write_pipe(spw_int->to_rx_write, &start_msg);
+    if(wait_started(spw_int, spw_int->from_rx_read) != 0) return -1; 
+    return 0;
 }
 
 
@@ -165,6 +192,19 @@ int32_t poll_rx(void* self, Packet* packet) {
     return r;
 }
 
+
+void print_packet(const Message * const msg){
+    Packet packet;
+    memcpy(&packet.s_header, msg->s_payload, sizeof(PacketHeader));
+    memcpy(packet.s_payload, msg->s_payload + sizeof(PacketHeader), packet.s_header.s_payload_len);
+    
+    printf("[PARENT] Received from LINK: [");
+    for(uint16_t i = 0; i < packet.s_header.s_payload_len; ++i) {
+        printf(" %2c", packet.s_payload[i]);
+    }
+    printf(" ]\n");
+}
+
 void process_link_msg(const SpWInterface* const spw_int, const Message* const msg) {
     switch (spw_int->state) {
         case OFF: 
@@ -172,13 +212,13 @@ void process_link_msg(const SpWInterface* const spw_int, const Message* const ms
         case READY:
             break;
         case STARTED:
-            #ifdef DEBUG_ALL_PIPE_DATA
-                printf("[PARENT] Received from LINK: len=%d, first 4 bytes: %d\n", msg->s_header.s_payload_len, *msg->s_payload);
-            #endif
             break;
         case CONNECTING:
             break;
         case RUN:
+            #ifdef DEBUG_PACKET_DATA
+                print_packet(msg);
+            #endif
             break;
         case ERROR_RESET:
             break;
@@ -196,9 +236,9 @@ int32_t send_packet_to_neigh(const SpWInterface* const spw, char* ch) {
 int32_t push_to_fifo(void* self, Packet* packet) {
     ChildProcess* pr = (ChildProcess*) self;
     Message msg = {
-        .s_header = { .s_type = LINK, .s_payload_len = packet->s_header.s_payload_len}
+        .s_header = { .s_type = LINK, .s_payload_len = sizeof(PacketHeader) + packet->s_header.s_payload_len }
     };
-    memcpy(msg.s_payload, packet->s_payload, packet->s_header.s_payload_len);
+    memcpy(msg.s_payload, packet, sizeof(PacketHeader) + packet->s_header.s_payload_len);
     write_pipe(pr->to_parent_write, &msg);
     return 0;
 }

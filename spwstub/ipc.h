@@ -24,8 +24,16 @@ typedef enum {
     PARENT_CONTROL = 0,
     CONSOLE_CONTROL,
     LINK,
-    STOP
+    STOP,
+    START
 } MessageType;
+
+typedef enum {
+    IDLE_STATE = 0,
+    STARTED_STATE,
+    STOPED_STATE
+} ProcessState;
+
 
 typedef struct {
     uint16_t     s_magic;        ///< magic signature, must be MESSAGE_MAGIC
@@ -81,6 +89,7 @@ int32_t read_pipe(pipe_fd from, Message* const msg);
 //------------------------------------------------------------------------------
 
 typedef struct {
+    ProcessState state;
     bool is_rx;
     uint64_t pid;
     uint64_t ppid;
