@@ -1,15 +1,10 @@
-#include "spw_node.h"
-#include "ipc.h"
+#include "spw_utils.h"
 
-#include <complex.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h> 
 #include <fcntl.h>
-#include <string.h>
+#include <unistd.h>
 #include <stdio.h>
-
-#define DEBUG_ALL_PIPE_DATA
+#include <string.h>
+#include <stdlib.h>
 
 int pipe2(int fildes[2], int flags);
 
@@ -60,23 +55,6 @@ void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
     printf("[PARENT] %2d <- %2d [CONSOLE]\n", nonblock_console_to_parent[0], nonblock_console_to_parent[1]);
 }
 
-void close_pipes(const SpWInterface* const spw_int) {
-    close(spw_int->to_tx_write);
-    close(spw_int->tx.from_parent_read);
-    close(spw_int->tx.to_parent_write);
-    close(spw_int->from_tx_read);
-
-    close(spw_int->to_rx_write);
-    close(spw_int->rx.from_parent_read);
-    close(spw_int->rx.to_parent_write);
-    close(spw_int->from_rx_read);
-
-    close(spw_int->to_console_write);
-    close(spw_int->console.from_parent_read);
-    close(spw_int->console.to_parent_write);
-    close(spw_int->from_console_read);
-}
-
 void create_forks(SpWInterface* const spw_int) {
     if(fork() == 0){
         spw_int->console.pid = getpid();
@@ -100,7 +78,24 @@ void create_forks(SpWInterface* const spw_int) {
     }
 }
 
-int32_t wait_all_stop(SpWInterface* const spw_int) {
+void close_pipes(const SpWInterface* const spw_int) {
+    close(spw_int->to_tx_write);
+    close(spw_int->tx.from_parent_read);
+    close(spw_int->tx.to_parent_write);
+    close(spw_int->from_tx_read);
+
+    close(spw_int->to_rx_write);
+    close(spw_int->rx.from_parent_read);
+    close(spw_int->rx.to_parent_write);
+    close(spw_int->from_rx_read);
+
+    close(spw_int->to_console_write);
+    close(spw_int->console.from_parent_read);
+    close(spw_int->console.to_parent_write);
+    close(spw_int->from_console_read);
+}
+
+int32_t wait_all_stop(const SpWInterface* const spw_int) {
     pipe_fd read_fd[3] = {spw_int->from_console_read, spw_int->from_rx_read, spw_int->from_tx_read};
     bool is_stop[3] = {false, false, false};
     uint8_t stoped = 0;
@@ -121,7 +116,7 @@ int32_t wait_all_stop(SpWInterface* const spw_int) {
     return 0;
 }
 
-void stop_interface(SpWInterface* const spw_int) {
+void stop_agents(const SpWInterface* const spw_int) {
     Message stop_msg = {
         .s_header = {
             .s_magic = MESSAGE_MAGIC,
@@ -132,14 +127,40 @@ void stop_interface(SpWInterface* const spw_int) {
     write_pipe(spw_int->to_tx_write, &stop_msg);
     write_pipe(spw_int->to_rx_write, &stop_msg);
     wait_all_stop(spw_int);
-    close_pipes(spw_int);
 }
+
 
 int32_t poll_children(SpWInterface* const spw_int, Message* msg) {
     int32_t r = read_pipe(spw_int->from_console_read, msg);
     if(r == 1) {
         r = read_pipe(spw_int->from_rx_read, msg);
         if(r == 1) return 1;
+    }
+    return r;
+}
+
+int32_t poll_parent(void *self, Message* msg) {
+    ChildProcess* pr = (ChildProcess*) self;
+    int32_t r = read_pipe(pr->from_parent_read, msg);
+    if(r == 1) {
+        return 1;
+    }
+    if(r == -1) {
+        fprintf(stderr, "do_child_payload err %d\n", r);
+        return -1;
+    }
+    return r;
+}
+
+int32_t poll_rx(void* self, Packet* packet) {
+    ChildProcess* pr = (ChildProcess*) self;
+    int32_t r = read_rx_pipe(pr->outer, packet);
+    if(r == 1) {
+        return 1;
+    }
+    if(r == -1) {
+        fprintf(stderr, "do_child_payload err %d\n", r);
+        return -1;
     }
     return r;
 }
@@ -172,43 +193,14 @@ int32_t send_packet_to_neigh(const SpWInterface* const spw, char* ch) {
     write_pipe(spw->to_tx_write, &msg);
 }
 
-int32_t parent_duty(SpWInterface* const spw_int) {
-    bool received_stop_from_console = false;
-    Message msg;
-    while(!received_stop_from_console){
-        int32_t r = poll_children(spw_int, &msg);
-
-        if(r == -1) {
-            fprintf(stderr, "do_child_payload err %d\n", r);
-            return -1;
-        }
-        if(r == 1) continue;
-
-        if(msg.s_header.s_type == CONSOLE_CONTROL){
-            char ch = *(char *)msg.s_payload;
-            if(ch == '9') received_stop_from_console = true;
-            else send_packet_to_neigh(spw_int, &ch);
-        } else if (msg.s_header.s_type == LINK) {
-            process_link_msg(spw_int, &msg);
-        } else {
-            return -1;
-        }
-    }
+int32_t push_to_fifo(void* self, Packet* packet) {
+    ChildProcess* pr = (ChildProcess*) self;
+    Message msg = {
+        .s_header = { .s_type = LINK, .s_payload_len = packet->s_header.s_payload_len}
+    };
+    memcpy(msg.s_payload, packet->s_payload, packet->s_header.s_payload_len);
+    write_pipe(pr->to_parent_write, &msg);
     return 0;
-}
-
-void powerup_link(SpWInterface* spw_int, pipe_fd tx, pipe_fd rx) {
-    if(spw_int->state != OFF) return;
-    spw_int->state = READY;
-    create_pipes(spw_int, tx, rx);
-}
-
-void start_link(SpWInterface* interface) {
-    if(interface->state != READY) return;
-    interface->state = STARTED;
-    create_forks(interface);
-    parent_duty(interface);
-    stop_interface(interface);
 }
 
 void* queue_read(Fifo *queue) {

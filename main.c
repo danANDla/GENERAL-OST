@@ -1,5 +1,3 @@
-#include "spwstub/ipc.h"
-#include "spwstub/spw_node.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -7,6 +5,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+#include "spwstub/spw_interface.h"
 
 int8_t get_id(int argc, char** argv) {
     if(argc < 3) {

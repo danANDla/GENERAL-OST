@@ -1,11 +1,11 @@
+#ifndef SPW_NODE_HPP
+#define SPW_NODE_HPP
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "ipc.h"
-
-#ifndef SPW_NODE_HPP
-#define SPW_NODE_HPP
 
 enum SpWState {
     OFF = 0,

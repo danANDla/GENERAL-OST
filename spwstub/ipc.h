@@ -1,18 +1,11 @@
-/**
- * @file     ipc.h
- * @Author   Michael Kosyakov and Evgeniy Ivanov (ifmo.distributedclass@gmail.com)
- * @date     March, 2014
- * @brief    A simple IPC library for programming assignments
- *
- * Students must not modify this file!
- */
-
 #ifndef __IFMO_DISTRIBUTED_CLASS_IPC__H
 #define __IFMO_DISTRIBUTED_CLASS_IPC__H
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "spw_packet.h"
 
 //------------------------------------------------------------------------------
 
@@ -101,5 +94,8 @@ void sender_duty();
 int32_t rx_duty(ChildProcess *pr);
 int32_t tx_duty(ChildProcess *pr);
 int32_t console_duty(ChildProcess *pr);
+
+int32_t read_rx_pipe(pipe_fd from, Packet* const packet);
+int32_t write_tx_pipe(pipe_fd to, const Packet* const packet);
 
 #endif // __IFMO_DISTRIBUTED_CLASS_IPC__H
