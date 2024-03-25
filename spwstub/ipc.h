@@ -15,7 +15,7 @@ typedef int32_t pipe_fd;
 
 enum {
     MESSAGE_MAGIC = 0xAFAF,
-    MAX_MESSAGE_LEN = 4096,
+    MAX_MESSAGE_LEN = 16384,
     PARENT_ID = 0,
     MAX_PROCESS_ID = 15
 };

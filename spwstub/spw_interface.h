@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     uint32_t id;
     bool auto_start;
+    bool fct;
     enum SpWState state;
     ChildProcess tx;
     ChildProcess rx;

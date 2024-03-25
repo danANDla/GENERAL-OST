@@ -4,6 +4,7 @@
 #include "spw_packet.h"
 
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -184,33 +185,90 @@ int32_t poll_rx(void* self, Packet* packet) {
     return r;
 }
 
+Packet retrieve_packet_from_msg(const Message* const msg) {
 
-void print_packet(const Message * const msg){
+    // printf("retrieving packet from message: [");
+    // for(uint16_t i = 0; i < msg->s_header.s_payload_len; ++i) {
+    //     printf("%2d ", msg->s_payload[i]);
+    // }
+    // printf("]\n");
+
     Packet packet;
     memcpy(&packet.s_header, msg->s_payload, sizeof(PacketHeader));
     memcpy(packet.s_payload, msg->s_payload + sizeof(PacketHeader), packet.s_header.s_payload_len);
-    
-    printf("[PARENT] Received from LINK: [");
+    return packet;
+}
+
+void print_packet(char* const pr, const Message * const msg){
+    Packet packet = retrieve_packet_from_msg(msg);
+    printf("%s: [", pr);
     for(uint16_t i = 0; i < packet.s_header.s_payload_len; ++i) {
-        printf(" %2c", packet.s_payload[i]);
+        #ifndef DEBUG_DECODE_SPW_CHARACTERS
+            printf(" %2c", packet.s_payload[i].b);
+        #endif 
+        
+        #ifdef DEBUG_DECODE_SPW_CHARACTERS
+            char* str = malloc(sizeof(char) * 4);
+            decode_character(str, &packet.s_payload[i]);
+            printf(" %s", str);
+            free(str);
+        #endif 
     }
     printf(" ]\n");
 }
 
-void process_link_msg(const SpWInterface* const spw_int, const Message* const msg) {
+void process_handshake_state(SpWInterface* const spw_int, Packet* packet) {
+    for(uint16_t i = 0; i < packet->s_header.s_payload_len; ++i) {
+        SpWCharcter ch = packet->s_payload[i];
+        CharacterType t = get_charater_type(&ch);
+        if(t == NULL_CH && spw_int->state == STARTED) {
+            spw_int->state = CONNECTING;
+            printf("[PARENT] READY -> CONNECTING\n");
+        }
+        else if(t == FCT_CH && spw_int->state == CONNECTING) {
+            spw_int->state = RUN; 
+            printf("[PARENT] CONNECTING -> RUN\n");
+        }
+    }
+}
+
+int32_t send_packet_tx(const pipe_fd tx, const Packet* const packet) {
+    Message msg = {.s_header = {.s_type = PARENT_CONTROL, .s_payload_len = sizeof(PacketHeader) + packet->s_header.s_payload_len}};
+    memcpy(msg.s_payload, packet, sizeof(PacketHeader) + packet->s_header.s_payload_len);
+    return write_pipe(tx, &msg);
+}
+
+void handshake_send(SpWInterface* const spw_int) {
+    if(spw_int->state == STARTED) {
+        send_packet_tx(spw_int->to_tx_write, &NULL_PACKET);
+    } else if (spw_int->state == CONNECTING) {
+        send_packet_tx(spw_int->to_tx_write, &FCT_PACKET);
+    }
+}
+ 
+void process_packet(SpWInterface* const spw_int, const Message* const msg) {
+    Packet packet = retrieve_packet_from_msg(msg);
+    if(spw_int->state != RUN) process_handshake_state(spw_int, &packet);
+}
+
+void process_link_msg(SpWInterface* const spw_int, const Message* const msg) {
+
     switch (spw_int->state) {
         case OFF: 
             break;
         case READY:
             break;
         case STARTED:
-            break;
         case CONNECTING:
+                #ifdef DEBUG_HANDSHAKE_PACKETS
+                    print_packet("[PARENT] received handshake", msg);
+                #endif
+                process_packet(spw_int, msg);
             break;
         case RUN:
-            #ifdef DEBUG_PACKET_DATA
-                print_packet(msg);
-            #endif
+                #ifdef DEBUG_DATA_PACKETS
+                    print_packet("[PARENT] recived from link", msg);
+                #endif
             break;
         case ERROR_RESET:
             break;
@@ -220,12 +278,15 @@ void process_link_msg(const SpWInterface* const spw_int, const Message* const ms
 }
 
 int32_t send_packet_to_neigh(const SpWInterface* const spw, char* ch) {
-    Message msg = {.s_header = {.s_type = PARENT_CONTROL, .s_payload_len = 1}};
-    memcpy(msg.s_payload, ch, 1);
-    write_pipe(spw->to_tx_write, &msg);
+    if(spw->state != RUN) {
+        fprintf(stderr, "[PARENT] send fail: link connection not established\n");
+        return -1;
+    }
+    send_packet_tx(spw->to_tx_write, &NULL_PACKET);
+    return 0;
 }
 
-int32_t push_to_fifo(void* self, Packet* packet) {
+int32_t push_to_fifo(void* self, Packet* packet){
     ChildProcess* pr = (ChildProcess*) self;
     Message msg = {
         .s_header = { .s_type = LINK, .s_payload_len = sizeof(PacketHeader) + packet->s_header.s_payload_len }
