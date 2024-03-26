@@ -1,3 +1,6 @@
 build
 .vscode
 debug
+payloads
+bmp_util
+image
