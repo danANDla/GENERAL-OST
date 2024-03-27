@@ -6,6 +6,11 @@
 #include <stdint.h>
 
 #include "ipc.h"
+#include "spw_packet.h"
+
+enum {
+    FIFO_MSG_SZ = 100
+};
 
 enum SpWState {
     OFF = 0,
@@ -18,7 +23,7 @@ enum SpWState {
 };
 
 typedef struct {
-    void** data;
+    Packet data[FIFO_MSG_SZ];
     uint32_t head;
     uint32_t tail;
     uint32_t size;
@@ -32,13 +37,13 @@ typedef struct {
     ChildProcess tx;
     ChildProcess rx;
     ChildProcess console;
-    Fifo rx_fifo;
     pipe_fd to_rx_write;
     pipe_fd from_rx_read;
     pipe_fd to_tx_write;
     pipe_fd from_tx_read;
     pipe_fd to_console_write;
     pipe_fd from_console_read;
+    Fifo tx_fifo;
 } SpWInterface;
 
 void start_link(SpWInterface* const interface);

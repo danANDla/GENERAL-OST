@@ -1,7 +1,10 @@
 #include "spw_utils.h"
 #include "ipc.h"
+#include "spw_agents.h"
 #include "spw_interface.h"
 #include "spw_packet.h"
+#include "../image/image.h"
+#include "../bmp_util/bmp_reader.h"
 
 #include <fcntl.h>
 #include <stdbool.h>
@@ -13,6 +16,8 @@
 
 int pipe2(int fildes[2], int flags);
 
+int32_t send_packet_to_link(ChildProcess* const tx, pipe_fd pipe_to_tx, const Packet* const packet);
+
 void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
     int32_t inner_tx_to_parent[2];
     if(pipe2(inner_tx_to_parent, O_NONBLOCK) < 0) exit(0);
@@ -22,7 +27,7 @@ void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
         .is_rx = false,
         .from_parent_read = inner_tx_from_parent[0],
         .to_parent_write = inner_tx_to_parent[1],
-        .outer = tx
+        .outer = tx,
     };
     spw_int->from_tx_read = inner_tx_to_parent[0];
     spw_int->to_tx_write = inner_tx_from_parent[1];
@@ -37,7 +42,7 @@ void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
         .is_rx = true,
         .from_parent_read = inner_rx_from_parent[0],
         .to_parent_write = inner_rx_to_parent[1],
-        .outer = rx
+        .outer = rx,
     };
     spw_int->from_rx_read = inner_rx_to_parent[0];
     spw_int->to_rx_write = inner_rx_from_parent[1];
@@ -52,7 +57,7 @@ void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
         .is_rx = false,
         .from_parent_read = nonblock_console_from_parent[0],
         .to_parent_write = nonblock_console_to_parent[1],
-        .outer = -1
+        .outer = -1,
     };
     spw_int->from_console_read = nonblock_console_to_parent[0];
     spw_int->to_console_write = nonblock_console_from_parent[1];
@@ -78,7 +83,7 @@ void create_forks(SpWInterface* const spw_int) {
     if(fork() == 0){
         spw_int->tx.pid = getpid();
         spw_int->tx.ppid = getppid();
-        if(tx_duty(&spw_int->tx) != 0) exit(-1);
+        if(tx_duty(&spw_int->tx, &spw_int->tx_fifo) != 0) exit(-1);
         exit(0);
     }
 }
@@ -186,13 +191,6 @@ int32_t poll_rx(void* self, Packet* packet) {
 }
 
 Packet retrieve_packet_from_msg(const Message* const msg) {
-
-    // printf("retrieving packet from message: [");
-    // for(uint16_t i = 0; i < msg->s_header.s_payload_len; ++i) {
-    //     printf("%2d ", msg->s_payload[i]);
-    // }
-    // printf("]\n");
-
     Packet packet;
     memcpy(&packet.s_header, msg->s_payload, sizeof(PacketHeader));
     memcpy(packet.s_payload, msg->s_payload + sizeof(PacketHeader), packet.s_header.s_payload_len);
@@ -201,10 +199,13 @@ Packet retrieve_packet_from_msg(const Message* const msg) {
 
 void print_packet(char* const pr, const Message * const msg){
     Packet packet = retrieve_packet_from_msg(msg);
-    printf("%s: [", pr);
-    for(uint16_t i = 0; i < packet.s_header.s_payload_len; ++i) {
+    printf("%s: (len=%d) [", pr, msg->s_header.s_payload_len);
+
+    uint16_t until = 10;
+    if(packet.s_header.s_payload_len < 10) until = packet.s_header.s_payload_len;
+    for(uint16_t i = 0; i < until; ++i) {
         #ifndef DEBUG_DECODE_SPW_CHARACTERS
-            printf(" %2c", packet.s_payload[i].b);
+            printf(" %2d", packet.s_payload[i].b);
         #endif 
         
         #ifdef DEBUG_DECODE_SPW_CHARACTERS
@@ -232,17 +233,11 @@ void process_handshake_state(SpWInterface* const spw_int, Packet* packet) {
     }
 }
 
-int32_t send_packet_tx(const pipe_fd tx, const Packet* const packet) {
-    Message msg = {.s_header = {.s_type = PARENT_CONTROL, .s_payload_len = sizeof(PacketHeader) + packet->s_header.s_payload_len}};
-    memcpy(msg.s_payload, packet, sizeof(PacketHeader) + packet->s_header.s_payload_len);
-    return write_pipe(tx, &msg);
-}
-
 void handshake_send(SpWInterface* const spw_int) {
     if(spw_int->state == STARTED) {
-        send_packet_tx(spw_int->to_tx_write, &NULL_PACKET);
+        send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &NULL_PACKET);
     } else if (spw_int->state == CONNECTING) {
-        send_packet_tx(spw_int->to_tx_write, &FCT_PACKET);
+        send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &FCT_PACKET);
     }
 }
  
@@ -252,7 +247,6 @@ void process_packet(SpWInterface* const spw_int, const Message* const msg) {
 }
 
 void process_link_msg(SpWInterface* const spw_int, const Message* const msg) {
-
     switch (spw_int->state) {
         case OFF: 
             break;
@@ -277,13 +271,69 @@ void process_link_msg(SpWInterface* const spw_int, const Message* const msg) {
     }
 }
 
-int32_t send_packet_to_neigh(const SpWInterface* const spw, char* ch) {
-    if(spw->state != RUN) {
-        fprintf(stderr, "[PARENT] send fail: link connection not established\n");
-        return -1;
+int32_t sep_to_packets(const void *const src, const size_t sz, Packet** const packets, size_t* const num_of_packets) {
+    size_t step = MAX_PACKET_LEN;
+    *num_of_packets = sz / step;
+    if(sz % step) *num_of_packets += 1;
+    Packet* res = malloc(sizeof(Packet) * *num_of_packets);
+    for(size_t i = 0; i < *num_of_packets - 1; ++i) {
+        res[0].s_header = (PacketHeader) {.s_payload_len = step};
+        memcpy(res->s_payload, src + i * step, step);
     }
-    send_packet_tx(spw->to_tx_write, &NULL_PACKET);
-    return 0;
+    res[*num_of_packets - 1].s_header = (PacketHeader) {.s_payload_len = sz % step};
+    memcpy(res->s_payload, src + (*num_of_packets - 1) * step, sz % step);
+    *packets = res;
+}
+
+int32_t send_packet_to_tx(const pipe_fd pipe_to_tx, const Packet* const packet) {
+    Message msg = {.s_header = {.s_type = PARENT_CONTROL, .s_payload_len = sizeof(PacketHeader) + packet->s_header.s_payload_len}};
+    memcpy(msg.s_payload, packet, sizeof(PacketHeader) + packet->s_header.s_payload_len);
+    return write_pipe(pipe_to_tx, &msg);
+}
+
+int32_t send_packet_to_link(ChildProcess* const tx, pipe_fd pipe_to_tx, const Packet* const packet) {
+    #ifdef SEND_THROUGH_BUFF
+        send_packet_to_tx(pipe_to_tx, packet);
+    #endif
+    #ifndef SEND_THROUGH_BUFF
+        write_tx_pipe(tx, packet);
+    #endif
+}
+
+int32_t send_data_to_link(SpWInterface* const spw_int, const void *const src, const int64_t sz) {
+    Packet p;
+    int64_t step = MAX_PACKET_PAYLOAD_LEN;
+    int64_t packets_n = sz / step;
+    if(sz % step) packets_n += 1;
+    for(int64_t i = 0; i < packets_n - 1; ++i) {
+        printf("[PARENT] sending %ld packet\n", i);
+        p.s_header.s_payload_len = step;
+        memcpy(p.s_payload, src + i * step, step);
+        send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &p);
+    }
+    p.s_header.s_payload_len = sz % step;
+    memcpy(p.s_payload, src + (packets_n - 1) * step, sz % step);
+    printf("[PARENT] sending %ld packet\n", packets_n - 1);
+    send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &p);
+}
+
+int32_t send_image(SpWInterface* const spw_int, char* path) {
+    struct Image img;
+    FILE* f = fopen(path, "rb");
+    from_bmp(f, &img);
+    size_t sz = get_image_net_size(&img) + sizeof(img.height) + sizeof(img.width);
+    void* data = malloc(sz);
+    memcpy(data, &img.height, sizeof(uint64_t));
+    size_t offset = sizeof(uint64_t) ;
+    memcpy(data + offset, &img.width, sizeof(uint64_t));
+    offset += sizeof(uint64_t);
+    memcpy(data + offset, img.pixels, get_image_net_size(&img));
+    send_data_to_link(spw_int, data, sz);
+    free(data);
+}
+
+int32_t send_char(SpWInterface* const spw_int, char ch) {
+    return send_data_to_link(spw_int, &ch,1); 
 }
 
 int32_t push_to_fifo(void* self, Packet* packet){
@@ -296,21 +346,37 @@ int32_t push_to_fifo(void* self, Packet* packet){
     return 0;
 }
 
-void* queue_read(Fifo *queue) {
-    if (queue->tail == queue->head) {
-        return NULL;
-    }
-    void* handle = queue->data[queue->tail];
-    queue->data[queue->tail] = NULL;
-    queue->tail = (queue->tail + 1) % queue->size;
-    return handle;
+int32_t get_q_free(const Fifo * const queue) {
+    if(queue->head == queue->tail) return queue->size;
+
+    if(queue->head >= queue->tail) return queue->size - queue->head + queue->tail;
+    return queue->tail - queue->head;
 }
 
-int queue_write(Fifo *queue, void* handle) {
+int32_t send_from_queue(ChildProcess* const tx, Fifo* const queue) {
+    if (queue->tail == queue->head) {
+        return -1;
+    }
+    printf("[TX] will send from queue (%d)\n", get_q_free(queue));
+    Packet packet = queue->data[queue->tail];
+    if(!is_available_to_write(tx->outer, packet.s_header.s_payload_len + sizeof(PacketHeader))) {
+        printf("[TX] pipe_is_busy (packets in head=%d, tail=%d)\n", queue->head, queue->tail);
+        return -1;
+    }
+    queue->data[queue->tail].s_header.s_payload_len = 0;
+    queue->tail = (queue->tail + 1) % queue->size;
+
+    write_tx_pipe(tx, &packet);
+}
+
+int32_t put_packet_in_queue(Fifo * const queue, const Message *const msg) {
     if (((queue->head + 1) % queue->size) == queue->tail) {
         return -1;
     }
-    queue->data[queue->head] = handle;
+    printf("putting msg in queue(%d)\n", get_q_free(queue));
+    Packet p = retrieve_packet_from_msg(msg);
+    decode_packet(p);
+    queue->data[queue->head] = p;
     queue->head = (queue->head + 1) % queue->size;
     return 0;
 }

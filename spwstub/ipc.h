@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "spw_packet.h"
 
@@ -17,7 +18,8 @@ enum {
     MESSAGE_MAGIC = 0xAFAF,
     MAX_MESSAGE_LEN = 16384,
     PARENT_ID = 0,
-    MAX_PROCESS_ID = 15
+    MAX_PROCESS_ID = 15, 
+    USECOND_TX_DELAY = 100
 };
 
 typedef enum {
@@ -25,7 +27,8 @@ typedef enum {
     CONSOLE_CONTROL,
     LINK,
     STOP,
-    START
+    START,
+    NOTHING
 } MessageType;
 
 typedef enum {
@@ -36,12 +39,8 @@ typedef enum {
 
 
 typedef struct {
-    uint16_t     s_magic;        ///< magic signature, must be MESSAGE_MAGIC
     uint16_t     s_payload_len;  ///< length of payload
     int16_t      s_type;         ///< type of the message
-    timestamp_t  s_local_time;   ///< set by sender, depends on particular PA:
-                                 ///< physical time in PA2 or Lamport's scalar
-                                 ///< time in PA3
 } __attribute__((packed)) MessageHeader;
 
 enum {
@@ -96,18 +95,15 @@ typedef struct {
     bool is_rx;
     uint64_t pid;
     uint64_t ppid;
-
+    int64_t last_send;
     pipe_fd from_parent_read;
     pipe_fd to_parent_write;
     pipe_fd outer;
 } ChildProcess;
 
-void sender_duty();
-int32_t rx_duty(ChildProcess *pr);
-int32_t tx_duty(ChildProcess *pr);
-int32_t console_duty(ChildProcess *pr);
-
 int32_t read_rx_pipe(pipe_fd from, Packet* const packet);
-int32_t write_tx_pipe(pipe_fd to, const Packet* const packet);
+int32_t write_tx_pipe(ChildProcess* const pr, const Packet* const packet);
+int32_t is_available_to_write(pipe_fd to, int32_t to_write);
+int32_t init_pipe_cap(pipe_fd from);
 
 #endif // __IFMO_DISTRIBUTED_CLASS_IPC__H

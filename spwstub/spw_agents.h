@@ -4,7 +4,7 @@
 #include "spw_interface.h"
 
 int32_t rx_duty(ChildProcess *pr);
-int32_t tx_duty(ChildProcess *pr);
+int32_t tx_duty(ChildProcess *pr, Fifo* const tx_fifo);
 int32_t console_duty(ChildProcess *pr);
 int32_t parent_duty(SpWInterface* const spw_int);
 

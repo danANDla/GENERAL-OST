@@ -6,6 +6,10 @@
 #include <stdio.h>
 
 void powerup_link(SpWInterface* const spw_int, const pipe_fd tx, const pipe_fd rx) {
+    spw_int->tx_fifo.size = FIFO_MSG_SZ;
+    spw_int->tx_fifo.head = 0;
+    spw_int->tx_fifo.tail = 0;
+
     if(spw_int->state != OFF) return;
     spw_int->state = ERROR_RESET;
     printf("[PARENT] OFF -> ERROR_RESET\n");
