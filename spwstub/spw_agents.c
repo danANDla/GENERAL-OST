@@ -132,6 +132,8 @@ int32_t parent_duty(SpWInterface* const spw_int) {
             char ch = *(char *)msg.s_payload;
             if(ch == '9') received_stop_from_console = true;
             else if(ch == '8') send_image(spw_int, "payloads/swiss.bmp");
+            else if(ch == '7') flush_rx_fifo(spw_int);
+            else if(ch == '6') img_from_fifo(spw_int);
             else send_char(spw_int, ch);
         } else if (msg.s_header.s_type == LINK) {
             process_link_msg(spw_int, &msg);

@@ -5,6 +5,7 @@
 #include "spw_packet.h"
 #include "../image/image.h"
 #include "../bmp_util/bmp_reader.h"
+#include "../bmp_util/bmp_writer.h"
 
 #include <fcntl.h>
 #include <stdbool.h>
@@ -17,6 +18,7 @@
 int pipe2(int fildes[2], int flags);
 
 int32_t send_packet_to_link(ChildProcess* const tx, pipe_fd pipe_to_tx, const Packet* const packet);
+int32_t read_fifo(Fifo* const queue, Packet* const packet);
 
 void create_pipes(SpWInterface* const spw_int, pipe_fd tx, pipe_fd rx) {
     int32_t inner_tx_to_parent[2];
@@ -197,15 +199,14 @@ Packet retrieve_packet_from_msg(const Message* const msg) {
     return packet;
 }
 
-void print_packet(char* const pr, const Message * const msg){
-    Packet packet = retrieve_packet_from_msg(msg);
-    printf("%s: (len=%d) [", pr, msg->s_header.s_payload_len);
-
-    uint16_t until = 10;
-    if(packet.s_header.s_payload_len < 10) until = packet.s_header.s_payload_len;
+void print_packet(char* const pr, const Packet * const packet){
+    printf("%s: (len=%d) [", pr, packet->s_header.s_payload_len);
+    uint16_t until = 20;
+    if(packet->s_header.s_payload_len < until) 
+        until = packet->s_header.s_payload_len;
     for(uint16_t i = 0; i < until; ++i) {
         #ifndef DEBUG_DECODE_SPW_CHARACTERS
-            printf(" %2d", packet.s_payload[i].b);
+            printf(" %2d", packet->s_payload[i].b);
         #endif 
         
         #ifdef DEBUG_DECODE_SPW_CHARACTERS
@@ -216,6 +217,17 @@ void print_packet(char* const pr, const Message * const msg){
         #endif 
     }
     printf(" ]\n");
+}
+
+int32_t flush_rx_fifo(SpWInterface* const spw_int) {
+    int32_t r = 0;
+    Packet packet;
+    int32_t cnt = 0;
+    while(read_fifo(&spw_int->rx_fifo, &packet) == 0) {
+        cnt++;
+        print_packet("packet", &packet);
+    }
+    printf("read from queue: %d packets\n", cnt);
 }
 
 void process_handshake_state(SpWInterface* const spw_int, Packet* packet) {
@@ -247,6 +259,9 @@ void process_packet(SpWInterface* const spw_int, const Message* const msg) {
 }
 
 void process_link_msg(SpWInterface* const spw_int, const Message* const msg) {
+    #ifdef DEBUG_HANDSHAKE_PACKETS
+        Packet p = retrieve_packet_from_msg(msg);
+    #endif
     switch (spw_int->state) {
         case OFF: 
             break;
@@ -255,14 +270,12 @@ void process_link_msg(SpWInterface* const spw_int, const Message* const msg) {
         case STARTED:
         case CONNECTING:
                 #ifdef DEBUG_HANDSHAKE_PACKETS
-                    print_packet("[PARENT] received handshake", msg);
+                    print_packet("[PARENT] received handshake", &p);
                 #endif
                 process_packet(spw_int, msg);
             break;
         case RUN:
-                #ifdef DEBUG_DATA_PACKETS
-                    print_packet("[PARENT] recived from link", msg);
-                #endif
+            put_packet_in_queue(&spw_int->rx_fifo, msg);
             break;
         case ERROR_RESET:
             break;
@@ -283,6 +296,7 @@ int32_t sep_to_packets(const void *const src, const size_t sz, Packet** const pa
     res[*num_of_packets - 1].s_header = (PacketHeader) {.s_payload_len = sz % step};
     memcpy(res->s_payload, src + (*num_of_packets - 1) * step, sz % step);
     *packets = res;
+    return 0;
 }
 
 int32_t send_packet_to_tx(const pipe_fd pipe_to_tx, const Packet* const packet) {
@@ -293,10 +307,10 @@ int32_t send_packet_to_tx(const pipe_fd pipe_to_tx, const Packet* const packet) 
 
 int32_t send_packet_to_link(ChildProcess* const tx, pipe_fd pipe_to_tx, const Packet* const packet) {
     #ifdef SEND_THROUGH_BUFF
-        send_packet_to_tx(pipe_to_tx, packet);
+        return send_packet_to_tx(pipe_to_tx, packet);
     #endif
     #ifndef SEND_THROUGH_BUFF
-        write_tx_pipe(tx, packet);
+        return write_tx_pipe(tx, packet);
     #endif
 }
 
@@ -314,22 +328,24 @@ int32_t send_data_to_link(SpWInterface* const spw_int, const void *const src, co
     p.s_header.s_payload_len = sz % step;
     memcpy(p.s_payload, src + (packets_n - 1) * step, sz % step);
     printf("[PARENT] sending %ld packet\n", packets_n - 1);
-    send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &p);
+
+    return send_packet_to_link(&spw_int->tx, spw_int->to_tx_write, &p);
 }
 
 int32_t send_image(SpWInterface* const spw_int, char* path) {
     struct Image img;
     FILE* f = fopen(path, "rb");
     from_bmp(f, &img);
-    size_t sz = get_image_net_size(&img) + sizeof(img.height) + sizeof(img.width);
+    size_t sz = sizeof(struct Pixel) * img.height * img.width + sizeof(img.height) + sizeof(img.width);
     void* data = malloc(sz);
     memcpy(data, &img.height, sizeof(uint64_t));
     size_t offset = sizeof(uint64_t) ;
     memcpy(data + offset, &img.width, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    memcpy(data + offset, img.pixels, get_image_net_size(&img));
-    send_data_to_link(spw_int, data, sz);
+    memcpy(data + offset, img.pixels, sizeof(struct Pixel) * img.height * img.width);
+    int32_t r = send_data_to_link(spw_int, data, sz);
     free(data);
+    return r;
 }
 
 int32_t send_char(SpWInterface* const spw_int, char ch) {
@@ -366,17 +382,72 @@ int32_t send_from_queue(ChildProcess* const tx, Fifo* const queue) {
     queue->data[queue->tail].s_header.s_payload_len = 0;
     queue->tail = (queue->tail + 1) % queue->size;
 
-    write_tx_pipe(tx, &packet);
+    return write_tx_pipe(tx, &packet);
 }
 
 int32_t put_packet_in_queue(Fifo * const queue, const Message *const msg) {
     if (((queue->head + 1) % queue->size) == queue->tail) {
         return -1;
     }
-    printf("putting msg in queue(%d)\n", get_q_free(queue));
+    printf("[PARENT] putting msg in queue(%d)\n", get_q_free(queue));
     Packet p = retrieve_packet_from_msg(msg);
-    decode_packet(p);
     queue->data[queue->head] = p;
     queue->head = (queue->head + 1) % queue->size;
+    return 0;
+}
+
+int32_t read_fifo(Fifo* const queue, Packet* const packet) {
+    if (queue->tail == queue->head) {
+        return -1;
+    }
+    *packet = queue->data[queue->tail];
+    queue->data[queue->tail].s_header.s_payload_len = 0;
+    queue->tail = (queue->tail + 1) % queue->size;
+    return 0;
+}
+
+int32_t img_from_fifo(SpWInterface* const spw_int) {
+    Packet packet;
+    int32_t r = read_fifo(&spw_int->rx_fifo, &packet);
+    struct Image image;
+
+    uint16_t payload_offset = 0;
+    memcpy(&image.height, packet.s_payload, sizeof(image.height));
+    payload_offset += sizeof(image.height);
+    memcpy(&image.width, packet.s_payload + payload_offset, sizeof(image.width));
+    payload_offset += sizeof(image.width);
+    printf("image width=%ld,height=%ld\n", image.width, image.height);
+
+    image.pixels = malloc(sizeof(struct Pixel) * image.width * image.height);
+
+    uint8_t pixel_buf[3];
+    uint8_t buf_sz = 0;
+    size_t pixel_offset = 0;
+
+    uint32_t cnt = 0;
+    while(r == 0) {
+        for(int i = payload_offset; i < packet.s_header.s_payload_len; ++i) {
+            memcpy(&pixel_buf[buf_sz], &packet.s_payload[i].b, 1);
+            buf_sz++;
+            if(buf_sz == 3) {
+                memcpy(image.pixels + pixel_offset, pixel_buf, 3 * sizeof(uint8_t));
+                pixel_offset++;
+                buf_sz = 0;
+                cnt++;
+            }
+        }
+        if(buf_sz != 0) printf("syoma\n");
+        payload_offset = 0;
+        r = read_fifo(&spw_int->rx_fifo, &packet);
+    }
+    printf("captured %d pixels\n", cnt);
+
+    FILE* res_file = fopen("results/swiss.bmp", "wb");
+    if(res_file != NULL)
+        to_bmp(res_file, &image);
+
+    free(image.pixels);
+    fclose(res_file);
+
     return 0;
 }

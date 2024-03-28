@@ -23,8 +23,11 @@ int32_t send_char(SpWInterface* const spw_int, char ch);
 int32_t push_to_fifo(void* self, Packet* packet);
 void process_link_msg(SpWInterface* const spw_int, const Message* const msg);
 void stop_agents(const SpWInterface* const spw_int);
-void print_packet(char* const pr, const Message * const msg);
+void print_packet(char* const pr, const Packet * const packet);
 
 int32_t send_from_queue(ChildProcess* const tx, Fifo* const queue);
 int32_t put_packet_in_queue(Fifo * const queue, const Message *const msg);
+int32_t flush_rx_fifo(SpWInterface* const spw_int);
+int32_t img_from_fifo(SpWInterface* const spw_int);
+
 #endif

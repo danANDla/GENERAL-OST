@@ -9,7 +9,7 @@
 #include "spw_packet.h"
 
 enum {
-    FIFO_MSG_SZ = 100
+    FIFO_MSG_SZ = 500
 };
 
 enum SpWState {
@@ -44,6 +44,7 @@ typedef struct {
     pipe_fd to_console_write;
     pipe_fd from_console_read;
     Fifo tx_fifo;
+    Fifo rx_fifo;
 } SpWInterface;
 
 void start_link(SpWInterface* const interface);
