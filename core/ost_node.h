@@ -13,7 +13,6 @@
  * \defgroup ost Open SpaceWire Transport Layer Node
  * This section documents the API of the transport-layer node of spw network.
  */
-
 typedef enum {
     PACKET_ARRIVED_FROM_NETWORK = 0,
     APPLICATION_PACKET_READY,
@@ -21,7 +20,6 @@ typedef enum {
     RETRANSMISSION_INTERRUPT,
     TRANSPORT_CLK_INTERRUPT,
 } TransportLayerEvent;
-int8_t add_packet_to_tx(OstNode* const node, void* data, uint8_t sz);
 
 typedef struct {
     uint8_t tx_window_top;
@@ -34,8 +32,7 @@ typedef struct {
     OstSegment rx_buffer[MAX_UNACK_PACKETS];
     int8_t acknowledged[MAX_UNACK_PACKETS];
 
-    TimerFifo* queue;
-
+    TimerFifo queue;
     void* spw_layer;
 } OstNode;
 

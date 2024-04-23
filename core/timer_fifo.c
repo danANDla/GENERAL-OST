@@ -6,34 +6,38 @@ void hw_timer_stop();
 nsecs_t push_timer(TimerFifo* const q, uint8_t seq_n, nsecs_t duration);
 nsecs_t pop_timer(TimerFifo* const q, uint8_t seq_n);
 
+nsecs_t get_hard_timer_left_time() {
+    return 0;    
+}
+
 int8_t is_queue_have_space(const TimerFifo* const q) {
     return ((q->head + 1) % MAX_UNACK_PACKETS) != q->tail;
 }
 
 int8_t add_new_timer(TimerFifo* const q, const uint8_t seq_n, const nsecs_t duration) {
-    if(!is_queue_have_space(q)) return -1;
-    nsecs_t r = push_timer(q, seq_n, duration);
-    if(r == 0) {
-        return -1;
-    }
+    // if(!is_queue_have_space(q)) return -1;
+    // nsecs_t r = push_timer(q, seq_n, duration);
+    // if(r == 0) {
+    //     return -1;
+    // }
 
-    hw_timer_start(duration);
-    q->last_timer = duration;
+    // hw_timer_start(duration);
+    // q->last_timer = duration;
 
     return 0;
 }
 
 int8_t cancel_timer(TimerFifo* const q, uint8_t seq_n) {
-    if(seq_n == q->data[q->tail].for_packet) {
-        hw_timer_stop();
-    }
-    nsecs_t r = pop_timer(q, seq_n);
-    if(r != -1) {
-        if(r != 0) {
-            hw_timer_start(r);
-            q->last_timer = r;
-        }
-    }
+    // if(seq_n == q->data[q->tail].for_packet) {
+    //     hw_timer_stop();
+    // }
+    // nsecs_t r = pop_timer(q, seq_n);
+    // if(r != -1) {
+    //     if(r != 0) {
+    //         hw_timer_start(r);
+    //         q->last_timer = r;
+    //     }
+    // }
     return 0;
 } 
 
@@ -78,17 +82,19 @@ nsecs_t pop_timer(TimerFifo* const q, uint8_t seq_n) {
 
         nsecs_t r = q->data[t_id].val;
         if(q->tail > q->head) {
-            for(uint16_t i = t_id; i < MAX_UNACK_PACKETS - 1; ++i) {
+            uint8_t i;
+            for(i = t_id; i < MAX_UNACK_PACKETS - 1; ++i) {
                 q->data[i] = q->data[i + 1];
             }
             if(q->head > 0)
                 q->data[MAX_UNACK_PACKETS - 1] = q->data[0];
-            for(uint16_t i = 0; i < q->head - 1; ++i) {
+            for(i = 0; i < q->head - 1; ++i) {
                 q->data[i] = q->data[i + 1];
             }
             q->data[t_id].val += r;
         } else {
-            for(uint16_t i = t_id; i < q->head - 1; ++i) {
+            uint8_t i;
+            for(i = t_id; i < q->head - 1; ++i) {
                 q->data[i] = q->data[i + 1];
             }
         }

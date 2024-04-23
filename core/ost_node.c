@@ -2,14 +2,21 @@
 
 void send_to_application(const OstSegment* const node);
 int8_t get_packet_from_application();
-int8_t send_to_physical(OstNode* const node, SegmentType t, uint8_t seq_n);
-int8_t spw_layer_send(void* spw_layer, const OstSegment* const seg);
-int8_t get_packet_from_physical();
+int8_t spw_layer_send(void* spw_layer, const OstSegment* const seg);  
+
+int8_t get_packet_from_physical() {
+    return 1;
+}
+
 
 bool tx_sliding_window_have_space();
 bool in_tx_window(const OstNode* const node, uint8_t);
 bool in_rx_window(const OstNode* const node, uint8_t);
 bool hw_timer_handler(OstNode* const node, uint8_t);
+
+int8_t spw_layer_send(void* spw_layer, const OstSegment* const seg) {
+    return 1;
+}
 
 void send_to_application(const OstSegment* const s) {
     // some output
@@ -50,7 +57,7 @@ int8_t send_to_physical(OstNode* const node, SegmentType t, uint8_t seq_n) {
         node->tx_buffer[seq_n].header.source_addr = -1;
 
         spw_layer_send(node->spw_layer, &node->tx_buffer[seq_n]);
-        add_new_timer(node->queue, node->tx_window_bottom, 100);
+        add_new_timer(&node->queue, node->tx_window_bottom, 100);
     } else if (t == ACK) {
         OstSegment seg = { 
             .header = {
