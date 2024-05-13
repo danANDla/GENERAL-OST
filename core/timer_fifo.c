@@ -126,3 +126,15 @@ int8_t cancel_timer(TimerFifo* const q, uint8_t seq_n) {
 
     return 0;
 } 
+
+void timer_interrupt_handler(TimerFifo* const q) {
+        uint8_t seq_n = q->data[q->tail].for_packet;
+        //NS_LOG_LOGIC("timer is up (" << std::to_string(seq_n) <<  ")");
+        nsecs_t to_set;
+        int8_t r = pop_timer(q, seq_n, to_set);
+        if(r == 0 && to_set != 0) {
+            activate_timer(q, &to_set);
+        }
+        //upper_handler(seq_n);
+} 
+
