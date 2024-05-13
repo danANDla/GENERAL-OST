@@ -94,23 +94,14 @@ typedef struct {
  * Продлжительность таймера, который сейчас тикает.
  */
 typedef struct {
-    Timer data[MAX_UNACK_PACKETS];
+    Timer data[MAX_UNACK_PACKETS + 1];
     uint8_t head;
     uint8_t tail;
+    uint8_t window_sz;
     nsecs_t timers_sum;
     nsecs_t last_timer;
     HardwareTimer* hw;
 } TimerFifo;
-
-/**
- * @relates TimerFifo
- * @fn int8_t timer_interrupt_handler(TimerFifo *const queue)
- * @brief Обработать прерывание от аппаратного таймера, завести новый из очереди.
- * @param queue очерeдь таймеров.
- * @returns Возвращает значение согласно требованию обработчика прерывыния. Пока
- * что 0 в случае успешного выполнения.
- */
-int8_t timer_interrupt_handler(TimerFifo *const queue);
 
 /**
  * @relates TimerFifo
@@ -133,6 +124,14 @@ int8_t add_new_timer(TimerFifo *const queue, uint8_t seq_n, const nsecs_t durati
  */
 int8_t cancel_timer(TimerFifo *const queue, uint8_t seq_n);
 
-int8_t is_queue_have_space(const TimerFifo* const q);
+/**
+ * @relates TimerFifo
+ * @fn int8_t timer_interrupt_handler(TimerFifo *const queue)
+ * @brief Обработать прерывание от аппаратного таймера, завести новый из очереди.
+ * @param queue очерeдь таймеров.
+ * @returns Возвращает значение согласно требованию обработчика прерывыния. Пока
+ * что 0 в случае успешного выполнения.
+ */
+int8_t timer_interrupt_handler(TimerFifo *const queue);
 
 #endif
