@@ -100,7 +100,7 @@ typedef struct {
     uint8_t window_sz;
     nsecs_t timers_sum;
     nsecs_t last_timer;
-    HardwareTimer* hw;
+    // HardwareTimer* hw;
 } TimerFifo;
 
 /**
