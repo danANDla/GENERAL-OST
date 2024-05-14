@@ -7,7 +7,7 @@
 */
 
 
-#define MAX_UNACK_PACKETS 255
+#define Q_SZ 255
 
 #include <inttypes.h>
 
@@ -95,13 +95,14 @@ typedef struct {
  * Продлжительность таймера (в тиках), который сейчас тикает.
  */
 typedef struct {
-    Timer data[MAX_UNACK_PACKETS + 1];
+    Timer data[Q_SZ + 1];
     uint8_t head;
     uint8_t tail;
     uint8_t window_sz;
     uint32_t timers_sum;
     uint32_t last_timer;
     // HardwareTimer* hw;
+    void (*upper_handler) (uint8_t);
 } TimerFifo;
 
 /**

@@ -35,25 +35,25 @@ TimerFifo* main_timer_fifo;
 int* int_counter;
 
 void move_head(TimerFifo* const q) {
-    q->head = (q->head + 1) % (MAX_UNACK_PACKETS + 1);
+    q->head = (q->head + 1) % (Q_SZ + 1);
 }
 
 void rmove_head(TimerFifo* const q) {
-    if(q->head == 0) q->head = MAX_UNACK_PACKETS;
+    if(q->head == 0) q->head = Q_SZ;
     else q->head -= 1;
 }
 
 void move_tail(TimerFifo* const q) {
-    q->tail = (q->tail + 1) % (MAX_UNACK_PACKETS + 1);
+    q->tail = (q->tail + 1) % (Q_SZ + 1);
 }
 
 int8_t is_queue_have_space(const TimerFifo* const q) {
-    return ((q->head + 1) % (MAX_UNACK_PACKETS + 1)) != q->tail;
+    return ((q->head + 1) % (Q_SZ + 1)) != q->tail;
 }
 
 int8_t get_number_of_timers(const TimerFifo* const q) {
     if(q->head < q->tail)
-        return MAX_UNACK_PACKETS - q->tail + q->head;
+        return Q_SZ - q->tail + q->head;
     return q->head - q->tail;
 }
 
@@ -81,7 +81,7 @@ int8_t pop_timer(TimerFifo* const q, const uint8_t seq_n, uint32_t* const durtai
     }
 
     if(seq_n == q->data[q->tail].for_packet) {
-        if(((q->tail > q->head) && q->tail == MAX_UNACK_PACKETS && q->head == 0) || q->head - q->tail == 1) {
+        if(((q->tail > q->head) && q->tail == Q_SZ && q->head == 0) || q->head - q->tail == 1) {
             move_tail(q);
             *duration_to_set = 0;
         } else {
@@ -97,14 +97,14 @@ int8_t pop_timer(TimerFifo* const q, const uint8_t seq_n, uint32_t* const durtai
 
         uint8_t t_id = q->tail;
 
-        while(q->data[t_id].for_packet != seq_n && t_id != q->head) t_id = (t_id + 1) % (MAX_UNACK_PACKETS + 1);
+        while(q->data[t_id].for_packet != seq_n && t_id != q->head) t_id = (t_id + 1) % (Q_SZ + 1);
         if(t_id == q->head) return -1;
 
         uint32_t r = q->data[t_id].tics;
         uint8_t i = t_id;
-        while((i + 1) % (MAX_UNACK_PACKETS + 1) != q->head) {
-            q->data[i] = q->data[(i + 1) % (MAX_UNACK_PACKETS + 1)];
-            i = (i + 1) % (MAX_UNACK_PACKETS + 1);
+        while((i + 1) % (Q_SZ + 1) != q->head) {
+            q->data[i] = q->data[(i + 1) % (Q_SZ + 1)];
+            i = (i + 1) % (Q_SZ + 1);
         }
         rmove_head(q);
         if(t_id == q->head) {
@@ -155,7 +155,6 @@ int8_t cancel_timer(TimerFifo* const q, uint8_t seq_n) {
 }
 
 
-
 int8_t activate_timer(TimerFifo* const q, const uint32_t tics) {
 	debug_printf("starting timer for %u tics\n", tics);
 	risc_it_setup(tics, 2);
@@ -184,7 +183,7 @@ void timer_interrupt_handler(int a) {
             debug_printf("Timer beps\n");
             *int_counter += 1; //инкрементируем счетчик прерываний
             risc_it_stop();
-            if(*int_counter >= 3) {
+            if(*int_counter >= 20) {
                 risc_disable_interrupt(RISC_INT_IT0, 0);
             }
             else {
@@ -197,20 +196,7 @@ void timer_interrupt_handler(int a) {
                 if(r == 0 && to_set != 0) {
                     activate_timer(q, to_set);
                 }
-
-
-                if(seq_n == 2) {
-                	debug_printf("AND NOW POP TIMER FOR 3\n");
-                	print_timers(q);
-                	if(seq_n == q->data[q->tail].for_packet)
-                		risc_it_stop();
-                	int8_t r = pop_timer(q, 3, &to_set);
-                	if(r == 0 && to_set != 0) {
-						activate_timer(q, to_set);
-					}
-                }
-
-
+                upper_handler(seq_n);
             }
         }
     #endif // ON_MC30SF
@@ -239,7 +225,7 @@ void print_timers(const TimerFifo* const q) {
         }
         else {
             if(i == q->head && i != q->tail) debug_printf("] ");
-            else if (i != MAX_UNACK_PACKETS) debug_printf(" NaN ");
+            else if (i != Q_SZ) debug_printf(" NaN ");
         }
     }
     debug_printf("\n tail=%d, head=%d, sum=%d, left_in_hw=%u\n", q->tail, q->head, q->timers_sum, get_hard_timer_left_time(q));
@@ -256,6 +242,6 @@ int8_t clean_queue(TimerFifo *const q) {
     q->timers_sum = 0;
     q->last_timer = 0;
     uint16_t i;
-    for(i = 0; i < MAX_UNACK_PACKETS; ++i)
+    for(i = 0; i < Q_SZ; ++i)
         q->data[i] = (Timer) {.tics = 0, .for_packet = 0};
 }
