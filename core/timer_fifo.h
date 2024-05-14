@@ -136,6 +136,9 @@ int8_t cancel_timer(TimerFifo *const queue, uint8_t seq_n);
 void timer_interrupt_handler(int a);
 
 void print_timers(const TimerFifo* const q);
+int8_t get_number_of_timers(const TimerFifo *const q);
+int8_t queue_empty(const TimerFifo *const q);
+int8_t clean_queue(TimerFifo *const q);
 void init_hw_timer(TimerFifo* main_fi, int* int_counter);
 
 #endif

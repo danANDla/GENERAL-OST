@@ -226,3 +226,18 @@ void print_timers(const TimerFifo* const q) {
     }
     debug_printf("\n tail=%d, head=%d, sum=%d, left_in_hw=%u\n", q->tail, q->head, q->timers_sum, get_hard_timer_left_time(q));
 }
+
+int8_t queue_empty(const TimerFifo *const q) {
+    return get_number_of_timers(q) == 0;
+}
+
+int8_t clean_queue(TimerFifo *const q) {
+    hw_timer_stop();
+    q->head = 0;
+    q->tail = 0;
+    q->timers_sum = 0;
+    q->last_timer = 0;
+    uint16_t i;
+    for(i = 0; i < MAX_UNACK_PACKETS; ++i)
+        q->data[i] = (Timer) {.val = 0, .for_packet = 0};
+}
