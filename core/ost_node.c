@@ -4,104 +4,79 @@
 #define TRY 100
 #define SWIC_SPEED 100
 
-void send_to_application(const OstNode* const node, OstSegment* segment);
-int8_t get_packet_from_application(OstNode* const node);
-void add_packet_to_rx(OstNode* const node, OstSegment* segment);
-
-int8_t send_to_physical(const OstNode* const node, SegmentFlag t, uint8_t seq_n);
-int8_t get_packet_from_physical(const OstNode* const node);
-int8_t tx_sliding_window_have_space(const OstNode* const node);
-int8_t in_tx_window(const OstNode* const node, uint8_t);
-int8_t in_rx_window(const OstNode* const node, uint8_t);
-int8_t hw_timer_handler(uint8_t);
-
-int8_t network_layer_handler(OstNode* const node, const SpWPacket* const pkt);
-
-int8_t aggregate_socket(uint8_t address);
-int8_t delete_socket(uint8_t address);
 
 void event_name(TransportLayerEvent e);
+void fill_segment(OstSegment *seg, unsigned int len, int first);
 
 int8_t start(OstNode *const node, int8_t socket_mode) {
+    node->ports[0] = malloc(sizeof(OstSocket));
+    node->ports[0]->queue.upper_handler = node->timeout_cb;
     return spw_hw_init(node);
 }
 
 void shutdown(OstNode *const node) {
-    // clear timer table
     uint8_t i = 0;
     for(i = 0; i < PORTS_NUMBER; ++i) {
         if(node->ports[i]->to_address != node->self_address && node->ports[i]->state != CLOSED) {
             close(node->ports[i]);
+            free(node->ports[i]);
         }
     }
 }
 
 int8_t event_handler(OstNode *const node, const TransportLayerEvent e) {
-
+    print_event(node, e);
+    switch (e)
+    {
+        case PACKET_ARRIVED_FROM_NETWORK: {
+            if(node->that_arrived)
+                socket_event_handler(&node->ports[0], e, node->that_arrived, 0);
+            free(node->that_arrived);
+            break;
+        }
+        case APPLICATION_PACKET_READY: {
+            OstSegment seg;
+            fill_segment(&seg, 100, 1);
+            uint8_t seg_n;
+            if(add_to_tx(&node->ports[0], &seg, &seg_n)) {
+                socket_event_handler(&node->ports[0], e, 0, seg_n);
+            }
+            free(seg.payload);
+            break;
+        }
+        default:
+            break;
+    }
+    return 0;
 }
 
-int8_t send_packet(OstNode *const node, int8_t address, const uint8_t *buffer, uint32_t size);
+void fill_segment(OstSegment *seg, unsigned int len, int first) {
+  seg->payload = malloc(len);
+  unsigned int i;
+  for (i = 0; i < len; i++) {
+    seg->payload[i] = ((i + first) % 256);
+  }
+  seg->header.payload_length = len;
+}
+
+int8_t send_packet(OstNode *const node, int8_t address, const uint8_t *buffer, uint32_t size) {
+    if(node->ports[0]->to_address != address) return -1;
+    OstSegment seg = {.header = {.payload_length = size}, .payload = buffer};
+    return send(node->ports[0], &seg);
+}
+
 int8_t receive_packet(OstNode *const node, const uint8_t *buffer, uint32_t *received_sz);
 
-int8_t open_connection(OstNode *const node, uint8_t address, int8_t mode);
-int8_t close_connection(OstNode *const node, uint8_t address);
+int8_t open_connection(OstNode *const node, uint8_t address, int8_t mode) {
+    node->ports[0]->self_port = 0;
+    node->ports[0]->to_address = address;
+    open(node->ports[0], mode);
+}
+
+int8_t close_connection(OstNode *const node, uint8_t address) {
+    close(node->ports[0]);
+}
 int8_t get_socket(OstNode *const node, uint8_t address, OstSocket *const socket);
-
-
-// void swic_test(void) {
-//   unsigned char src[SIZE] __attribute__((aligned(8))) = {
-//       0,
-//   };
-//   unsigned char dst[SIZE] __attribute__((aligned(8))) = {
-//       0,
-//   };
-//   unsigned int desc[2] __attribute__((aligned(8))) = {
-//       0,
-//   };
-//   unsigned int i = 0;
-
-// #ifdef LOOPBACK_MODE
-//   unsigned int flag0 = 0;
-//   unsigned int flag1 = 0;
-// #endif
-
-//   base_init();
-
-// #ifdef LOOPBACK_MODE
-//   // SWIC 1
-//   for (i = 0; i <= TRY; i++) {
-//     swic_init_loopback(1);
-
-//     if (swic_is_connected(1) == 1)
-//       break;
-//     debug_printf("SWIC 1 MODE: %x \n", GIGASPWR_COMM_SPW_MODE(1));
-//     debug_printf("SWIC 1 STATUS: %x \n", GIGASPWR_COMM_SPW_STATUS(1));
-//     delay(1000);
-//   }
-//   flag1 = swic_is_connected(1);
-//   debug_printf("SWIC 1 CONNECT: %x \n", flag1);
-
-//   // SWIC0
-//   i = 0;
-//   for (i = 0; i <= TRY; i++) {
-//     swic_init_loopback(0);
-
-//     if (swic_is_connected(0) == 1)
-//       break;
-//     debug_printf("SWIC 0 MODE: %x \n", GIGASPWR_COMM_SPW_MODE(0));
-//     debug_printf("SWIC 0 STATUS: %x \n", GIGASPWR_COMM_SPW_STATUS(0));
-//     delay(1000);
-//   }
-//   flag0 = swic_is_connected(0);
-//   debug_printf("SWIC 0 CONNECT: %x \n", flag0);
-
-//   i = 0;
-//   if ((flag0 == 0) & (flag1 == 0)) {
-//     debug_printf("ALL SWIC CONNECTION FAIL! \n");
-//     return;
-//   }
-
-// #endif
 
 int8_t spw_hw_init(OstNode* const node) {
 #ifndef LOOPBACK_MODE
@@ -148,4 +123,22 @@ int8_t spw_hw_init(OstNode* const node) {
   debug_printf("OST 0 RX_SPEED: %x \n", swic_get_rx_speed(0));
   debug_printf("OST 1 RX_SPEED: %x \n", swic_get_rx_speed(1));
 #endif
+}
+
+void print_event(const OstNode* const node, const TransportLayerEvent e){
+    switch (e)
+    {
+    case PACKET_ARRIVED_FROM_NETWORK:
+        debug_printf("NODE[%d] event: PACKET_ARRIVED_FROM_NETWORK", node->self_address);
+        break;
+    case RETRANSMISSION_INTERRUPT:
+        debug_printf("NODE[%d] event: RETRANSMISSION_INTERRUPT", node->self_address);
+        break;
+    case APPLICATION_PACKET_READY:
+        debug_printf("NODE[%d] event: APPLICATION_PACKET_READY", node->self_address);
+        break;
+    default:
+        debug_printf("NODE[%d] event: unk", node->self_address);
+        break;
+    }
 }

@@ -8,11 +8,7 @@
 #include "spw_packet.h"
 #include "ost_socket.h"
 
-// #define WINDOW_SZ 1
-
-static const uint16_t WINDOW_SZ = 10;
-static const micros_t DURATION_RETRANSMISSON = 500000;
-static const uint8_t PORTS_NUMBER = 3;
+static const uint8_t PORTS_NUMBER = 1;
 
 /**
  * \defgroup ost Open SpaceWire Transport Layer Node
@@ -26,22 +22,11 @@ typedef enum {
 } TransportLayerEvent;
 
 typedef struct {
-    TimerFifo queue;
-
-    uint8_t to_retr;
-    uint8_t tx_window_bottom;
-    uint8_t tx_window_top;
-    uint8_t rx_window_bottom;
-    uint8_t rx_window_top;
-    OstSegment tx_buffer[MAX_UNACK_PACKETS];
-    OstSegment rx_buffer[MAX_UNACK_PACKETS];
-    int8_t acknowledged[MAX_UNACK_PACKETS];
-    TimerFifo queue;
-    void *spw_layer;
-
     uint8_t self_address;
-    void (*rx_cb)(uint8_t, OstSegment *);
-    OstSocket *ports[MAX_UNACK_PACKETS];
+    void (*rx_cb) (uint8_t, OstSegment *);
+    void (*timeout_cb) (uint8_t);
+    OstSocket *ports[PORTS_NUMBER];
+    OstSegment* that_arrived;
 } OstNode;
 
 int8_t start(OstNode *const node, int8_t socket_mode);
