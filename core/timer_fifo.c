@@ -17,21 +17,19 @@
 
 #endif
 
-
-
 void move_head(TimerFifo *const q);
 void rmove_head(TimerFifo *const q);
 void move_tail(TimerFifo *const q);
 int8_t is_queue_have_space(const TimerFifo *const q);
 int8_t get_number_of_timers(const TimerFifo *const q);
-int8_t activate_timer(TimerFifo *const q, const micros_t duration);
+int8_t activate_timer(TimerFifo *const q, const uint32_t duration);
 void hw_timer_stop();
 int8_t is_queue_have_space(const TimerFifo* const q);
 
-int8_t push_timer(TimerFifo* const q, const uint8_t seq_n, micros_t duration, micros_t* duration_to_set);
-int8_t pop_timer(TimerFifo* const q, const uint8_t seq_n, micros_t* durtaion_to_set);
+int8_t push_timer(TimerFifo* const q, const uint8_t seq_n, const uint32_t duration, uint32_t* const duration_to_set);
+int8_t pop_timer(TimerFifo* const q, const uint8_t seq_n, uint32_t* const durtaion_to_set);
 
-micros_t get_hard_timer_left_time(const TimerFifo* const q);
+uint32_t get_hard_timer_left_tics(const TimerFifo* const q);
 
 TimerFifo* main_timer_fifo;
 int* int_counter;
@@ -59,7 +57,7 @@ int8_t get_number_of_timers(const TimerFifo* const q) {
     return q->head - q->tail;
 }
 
-int8_t push_timer(TimerFifo* const q, uint8_t seq_n, uint32_t duration_tics, uint32_t* duration_to_set) {
+int8_t push_timer(TimerFifo* const q, const uint8_t seq_n, const uint32_t duration, uint32_t* const duration_to_set) {
     if (!is_queue_have_space(q) || duration_tics > MAX_TIMER_DURATION) {
         return -1;
     }
@@ -72,12 +70,12 @@ int8_t push_timer(TimerFifo* const q, uint8_t seq_n, uint32_t duration_tics, uin
         q->timers_sum += q->data[q->head].tics;
         *duration_to_set = 0;
     }
-    micros_t r = q->data[q->head].tics;
+    uin32_t r = q->data[q->head].tics;
     move_head(q);
     return 0;
 }
 
-int8_t pop_timer(TimerFifo* const q, uint8_t seq_n, uint32_t* duration_to_set) {
+int8_t pop_timer(TimerFifo* const q, const uint8_t seq_n, uint32_t* const durtaion_to_set) {
     if (q->tail == q->head) {
         return -1;
     }
@@ -102,7 +100,7 @@ int8_t pop_timer(TimerFifo* const q, uint8_t seq_n, uint32_t* duration_to_set) {
         while(q->data[t_id].for_packet != seq_n && t_id != q->head) t_id = (t_id + 1) % (MAX_UNACK_PACKETS + 1);
         if(t_id == q->head) return -1;
 
-        micros_t r = q->data[t_id].tics;
+        uint32_t r = q->data[t_id].tics;
         uint8_t i = t_id;
         while((i + 1) % (MAX_UNACK_PACKETS + 1) != q->head) {
             q->data[i] = q->data[(i + 1) % (MAX_UNACK_PACKETS + 1)];
@@ -193,7 +191,7 @@ void timer_interrupt_handler(int a) {
                 TimerFifo* q = main_timer_fifo;
                 risc_tics_start();
                 uint8_t seq_n = q->data[q->tail].for_packet;
-                micros_t to_set;
+                uint32_t to_set;
                 int8_t r = pop_timer(q, seq_n, &to_set);
                 print_timers(q);
                 if(r == 0 && to_set != 0) {

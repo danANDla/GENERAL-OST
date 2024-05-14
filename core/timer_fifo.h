@@ -88,19 +88,19 @@ typedef struct {
  * Индекс последнего элемента очереди
  *
  * @var TimerFifo::timers_sum
- * Текущая сумма таймеров - время, через которое срабатает самый правый таймер
+ * Текущая сумма таймеров (в тиках) - время, через которое срабатает самый правый таймер
  * при условии что левой только что был запущен.
 
  * @var TimerFifo::last_timer
- * Продлжительность таймера, который сейчас тикает.
+ * Продлжительность таймера (в тиках), который сейчас тикает.
  */
 typedef struct {
     Timer data[MAX_UNACK_PACKETS + 1];
     uint8_t head;
     uint8_t tail;
     uint8_t window_sz;
-    micros_t timers_sum;
-    micros_t last_timer;
+    uint32_t timers_sum;
+    uint32_t last_timer;
     // HardwareTimer* hw;
 } TimerFifo;
 
