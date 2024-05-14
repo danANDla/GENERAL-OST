@@ -132,6 +132,9 @@ int8_t cancel_timer(TimerFifo *const queue, uint8_t seq_n);
  * @returns Возвращает значение согласно требованию обработчика прерывыния. Пока
  * что 0 в случае успешного выполнения.
  */
-int8_t timer_interrupt_handler(TimerFifo *const queue);
+void timer_interrupt_handler(int a);
+
+void print_timers(const TimerFifo* const q);
+void init_hw_timer(TimerFifo* main_fi, int* int_counter);
 
 #endif
