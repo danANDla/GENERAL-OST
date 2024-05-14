@@ -34,7 +34,7 @@ static const micros_t TIMER_MIN_STEP = 31;
 
 typedef struct {
     uint8_t for_packet;
-    micros_t val;
+    uint32_t tics;
 } Timer;
 
 /**
