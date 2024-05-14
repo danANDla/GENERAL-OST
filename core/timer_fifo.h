@@ -21,7 +21,7 @@
 * @typedef NanoSeconds
 * @brief Целочисленный беззнаковый тип наносекунды
 */
-typedef uint32_t nsecs_t;
+typedef uint32_t micros_t;
 
 /**
 * @ingroup Timer
@@ -29,11 +29,12 @@ typedef uint32_t nsecs_t;
 */
 static const uint32_t CPU_FREQ = 32768; 
 
-static const nsecs_t MAX_TIMER_DURATION = 16843000;
+static const uint32_t MAX_TIMER_DURATION = 1048560000000;
+static const micros_t TIMER_MIN_STEP = 31;
 
 typedef struct {
     uint8_t for_packet;
-    nsecs_t val;
+    micros_t val;
 } Timer;
 
 /**
@@ -98,8 +99,8 @@ typedef struct {
     uint8_t head;
     uint8_t tail;
     uint8_t window_sz;
-    nsecs_t timers_sum;
-    nsecs_t last_timer;
+    micros_t timers_sum;
+    micros_t last_timer;
     // HardwareTimer* hw;
 } TimerFifo;
 
@@ -112,7 +113,7 @@ typedef struct {
  * @param duration время через, которое должен сработать таймер.
  * @returns 0 в случае успешного выполнения.
  */
-int8_t add_new_timer(TimerFifo *const queue, uint8_t seq_n, const nsecs_t duration);
+int8_t add_new_timer(TimerFifo *const queue, uint8_t seq_n, const micros_t duration);
 
 /**
  * @relates TimerFifo
