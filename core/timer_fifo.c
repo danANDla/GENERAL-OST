@@ -210,4 +210,19 @@ void init_hw_timer(TimerFifo* main_fi, int* int_cnt) {
 
 void print_timers(const TimerFifo* const q) {
 	debug_printf("%d timers\n", get_number_of_timers(q));
+
+    int i;
+    for(i = 0; i < MAX_UNACK_PACKETS; ++i) {
+        if(i == q->tail && i == q->head) debug_printf("[]");
+        else if(i == q->tail) debug_printf("[");
+
+        if((q->tail > q->head && (i >= q->tail || i < q->head)) || (q->head > q->tail && i >= q->tail && i < q->head)) {
+            debug_printf("%5d {%2d} ", q->data[i].val, q->data[i].for_packet);
+        }
+        else {
+            if(i == q->head && i != q->tail) debug_printf("] ");
+            else if (i != MAX_UNACK_PACKETS) debug_printf(" NaN ");
+        }
+    }
+    debug_printf("\n tail=%d, head=%d, sum=%d, left_in_hw=%u\n", q->tail, q->head, q->timers_sum, get_hard_timer_left_time(q));
 }
