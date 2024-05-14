@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-int8_t peekHeader(const SpWPacket *const packet, OstSegmentHeader *const header)
+int8_t peek_header(const SpWPacket *const packet, OstSegmentHeader *const header)
 {
     if (packet->sz < sizeof(OstSegmentHeader))
         return -1;

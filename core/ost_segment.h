@@ -27,12 +27,11 @@ typedef struct
 typedef struct {
     OstSegmentHeader header;
     uint8_t *payload;
-    uint32_t payload_size;
 } OstSegment;
 
 int8_t data_to_ost_segment(OstSegment *const seg, void *data, uint8_t sz);
 int8_t spw_packet_to_ost_segment(const SpWPacket *const packet, OstSegment *const seg);
-int8_t peekHeader(const SpWPacket *const packet, OstSegmentHeader *const header);
+int8_t peek_header(const SpWPacket *const packet, OstSegmentHeader *const header);
 
 void set_seq_number(OstSegment *const header, uint8_t);
 uint8_t get_seq_number(const OstSegment *const header);
