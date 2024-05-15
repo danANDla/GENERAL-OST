@@ -29,7 +29,7 @@ typedef uint32_t micros_t;
 */
 static const uint32_t CPU_FREQ = 32768; 
 
-static const uint32_t MAX_TIMER_DURATION = 1048560000000;
+static const uint32_t MAX_TIMER_DURATION = 0xffffffff;
 static const micros_t TIMER_MIN_STEP = 31;
 
 typedef struct {

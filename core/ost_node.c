@@ -1,12 +1,16 @@
 #include "ost_node.h"
+#include "ost_socket.h"
+#include "../../swic.h"
+
+#include <stdlib.h>
 
 // #define LOOPBACK_MODE
 #define TRY 100
 #define SWIC_SPEED 100
 
-
-void event_name(TransportLayerEvent e);
 void fill_segment(OstSegment *seg, unsigned int len, int first);
+int8_t spw_hw_init(OstNode* const node);
+void print_event(const OstNode* const node, const TransportLayerEvent e);
 
 int8_t start(OstNode *const node, int8_t socket_mode) {
     node->ports[0] = malloc(sizeof(OstSocket));
@@ -117,7 +121,7 @@ int8_t spw_hw_init(OstNode* const node) {
 
   if (swic_is_connected(1) == 0) {
     debug_printf("OST hardware Init FAIL! \n");
-    return;
+    return -1;
   }
 
   debug_printf("OST 0 RX_SPEED: %x \n", swic_get_rx_speed(0));
@@ -125,7 +129,7 @@ int8_t spw_hw_init(OstNode* const node) {
 #endif
 }
 
-void print_event(const OstNode* const node, const TransportLayerEvent e){
+void print_event(const OstNode* const node, const TransportLayerEvent e) {
     switch (e)
     {
     case PACKET_ARRIVED_FROM_NETWORK:

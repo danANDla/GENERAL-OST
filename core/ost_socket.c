@@ -1,6 +1,7 @@
 #include "ost_socket.h"
 #include "timer_fifo.h"
 #include "ost_node.h"
+#include "../../swic.h"
 
 // #include "SWIC.h"
 
@@ -15,6 +16,7 @@ void send_rejection(OstSocket *const sk, uint8_t seq_n);
 void send_syn(OstSocket *const sk, uint8_t seq_n);
 void send_syn_confirm(OstSocket *const sk, uint8_t seq_n);
 void send_confirm(OstSocket *const sk, uint8_t seq_n);
+int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t seq_n);
 void send_spw(void *spw_layer, OstSegment *seg);
 
 void start_close_wait_timer(OstSocket *const sk);
@@ -27,7 +29,7 @@ int8_t in_tx_window(const OstSocket *const sk, uint8_t);
 int8_t in_rx_window(const OstSocket *const sk, uint8_t);
 int8_t tx_sliding_window_have_space(const OstSocket* const sk);
 
-int8_t event_handler(OstSocket* const sk, const TransportLayerEvent e, OstSegment* seg, uint8_t seq_n)
+int8_t socket_event_handler(OstSocket* const sk, const enum TransportLayerEvent e, OstSegment* seg, uint8_t seq_n)
 {
     switch (e)
     {
@@ -87,7 +89,7 @@ int8_t send(OstSocket *const sk, OstSegment *seg)
         return -1;
     }
 
-    sk->acknowledged[sk->tx_window_top] = false;
+    sk->acknowledged[sk->tx_window_top] = 0;
     int8_t* buff = malloc(sizeof(int8_t*) * seg->header.payload_length);
     sk->tx_buffer[sk->tx_window_top] = (OstSegment) {
         .header = {
@@ -109,7 +111,7 @@ int8_t receive(OstSocket *const sk, OstSegment *seg)
 
 int8_t add_to_tx(OstSocket* const sk, const OstSegment* const seg, uint8_t * const seq_n) {
     if(tx_sliding_window_have_space(sk)) {
-        sk->acknowledged[sk->tx_window_top] = false;
+        sk->acknowledged[sk->tx_window_top] = 0;
 
         sk->tx_buffer[sk->tx_window_top].header.payload_length = seg->header.payload_length;
         sk->tx_buffer[sk->tx_window_top].header.seq_number = sk->tx_window_top;
@@ -136,7 +138,7 @@ int8_t segment_arrival_event_socket_handler(OstSocket *const sk, OstSegment *seg
             {
                 if (!sk->acknowledged[get_seq_number(&header)])
                 {
-                    sk->acknowledged[get_seq_number(&header)] = true;
+                    sk->acknowledged[get_seq_number(&header)] = 1;
                     cancel_timer(&sk->queue, get_seq_number(&header));
                     while (sk->acknowledged[sk->tx_window_bottom])
                     {
@@ -163,6 +165,17 @@ int8_t segment_arrival_event_socket_handler(OstSocket *const sk, OstSegment *seg
     return -1;
 }
 
+void send_rejection(OstSocket *const sk, uint8_t seq_n)
+{
+    OstSegmentHeader header;
+    set_payload_len(&header, 0);
+    set_seq_number(&header, seq_n);
+    set_flag(&header, RST);
+    set_src_addr(&header, sk->ost->self_address);
+    OstSegment seg = (OstSegment){.header = header};
+    send_spw(sk->spw_layer, &seg);
+}
+
 int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t seq_n)
 {
     OstSegmentHeader header;
@@ -186,7 +199,7 @@ int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t 
 
         send_spw(sk->spw_layer, &sk->tx_buffer[seq_n]);
         if (add_new_timer(&sk->queue, seq_n, DURATION_RETRANSMISSON) != 0)
-            NS_LOG_ERROR("timer error");
+            return -1;
     }
     return 0;
 }
@@ -194,6 +207,29 @@ int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t 
 void send_spw(void *spw_layer, OstSegment *seg)
 {
     swic_send_packege(SWIC0, seg, sizeof(OstSegmentHeader) + seg->header.payload_length);
+}
+
+void send_to_application(OstSocket *const sk, OstSegment *seg)
+{
+    
+}
+
+int8_t in_tx_window(const OstSocket *const sk, uint8_t seq_n)
+{
+    if(sk->tx_window_bottom > sk->tx_window_top) {
+        return seq_n >= sk->tx_window_bottom || seq_n <= sk->tx_window_top;
+    }
+
+    return seq_n >= sk->tx_window_bottom && seq_n <= sk->tx_window_top;
+}
+
+int8_t in_rx_window(const OstSocket *const sk, uint8_t seq_n)
+{
+    if(sk->rx_window_bottom > sk->rx_window_top) {
+        return seq_n >= sk->rx_window_bottom || seq_n <= sk->rx_window_top;
+    }
+
+    return seq_n >= sk->rx_window_bottom && seq_n <= sk->rx_window_top;
 }
 
 int8_t tx_sliding_window_have_space(const OstSocket* const sk)

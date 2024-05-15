@@ -24,7 +24,8 @@ typedef struct
     uint16_t payload_length;
 } OstSegmentHeader;
 
-typedef struct {
+typedef struct OstSegment
+{
     OstSegmentHeader header;
     uint8_t *payload;
 } OstSegment;
@@ -50,6 +51,6 @@ int8_t is_syn(const OstSegment* const header);
 int8_t is_rst(const OstSegment* const header);
 int8_t is_dta(const OstSegment* const header);
 
-segment_type_name(SegmentFlag t);
+void segment_type_name(SegmentFlag t);
 
 #endif

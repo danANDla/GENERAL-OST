@@ -3,9 +3,14 @@
 
 #include <inttypes.h>
 #include "ost_segment.h"
+#include "timer_fifo.h"
 
 static const micros_t DURATION_RETRANSMISSON = 2000000; // 2 secs
-static const uint16_t WINDOW_SZ = 10;
+
+//static const uint16_t WINDOW_SZ = 10;
+#define WINDOW_SZ 10
+
+enum TransportLayerEvent;
 
 typedef enum
 {
@@ -24,9 +29,9 @@ typedef enum
     CLOSE_WAIT,
 } SocketState;
 
-typedef struct
+typedef struct OstSocket
 {
-    OstNode *ost;
+    struct OstNode *ost;
     /* data */
     SocketMode mode;
     SocketState state;
@@ -53,7 +58,7 @@ int8_t close(OstSocket* const sk);
 int8_t send(OstSocket* const sk, OstSegment* seg);
 int8_t receive(OstSocket* const sk, OstSegment* seg);
 
-int8_t socket_event_handler(OstSocket* const sk, const TransportLayerEvent e, OstSegment* seg, uint8_t seq_n);
+int8_t socket_event_handler(OstSocket* const sk, const enum TransportLayerEvent e, OstSegment* seg, uint8_t seq_n);
 int8_t add_to_tx(OstSocket* const sk, const OstSegment* const seg, uint8_t * const seq_n);
 
 #endif
