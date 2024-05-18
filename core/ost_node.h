@@ -10,6 +10,7 @@
 //static const uint8_t PORTS_NUMBER = 1;
 #define PORTS_NUMBER 1
 
+enum SocketMode;
 
 /**
  * \defgroup ost Open SpaceWire Transport Layer Node
@@ -32,7 +33,7 @@ typedef struct OstNode
     OstSegment* that_arrived;
 } OstNode;
 
-int8_t start(OstNode *const node, int8_t socket_mode);
+int8_t start(OstNode *const node, const enum SocketMode socket_mode);
 void shutdown(OstNode *const node);
 int8_t event_handler(OstNode *const node, const TransportLayerEvent e);
 

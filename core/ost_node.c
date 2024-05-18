@@ -12,7 +12,7 @@ void fill_segment(OstSegment *seg, unsigned int len, int first);
 int8_t spw_hw_init(OstNode* const node);
 void print_event(const OstNode* const node, const TransportLayerEvent e);
 
-int8_t start(OstNode *const node, int8_t socket_mode) {
+int8_t start(OstNode *const node, const enum SocketMode socket_mode) {
     node->ports[0] = malloc(sizeof(OstSocket));
     node->ports[0]->queue.upper_handler = node->timeout_cb;
     return spw_hw_init(node);

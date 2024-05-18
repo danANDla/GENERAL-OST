@@ -17,7 +17,7 @@ void send_syn(OstSocket *const sk, uint8_t seq_n);
 void send_syn_confirm(OstSocket *const sk, uint8_t seq_n);
 void send_confirm(OstSocket *const sk, uint8_t seq_n);
 int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t seq_n);
-void send_spw(void *spw_layer, OstSegment *seg);
+void send_spw(SWIC_SEND spw_layer, OstSegment *seg);
 
 void start_close_wait_timer(OstSocket *const sk);
 void stop_close_wait_timer(OstSocket *const sk);
@@ -49,7 +49,10 @@ int8_t open(OstSocket *const sk, int8_t mode)
     sk->mode = mode;
     if (mode == CONNECTIONLESS)
     {
-
+        sk->state = OPEN;
+        init_socket(sk);
+        init_hw_timer(&sk->queue);
+        debug_printf("opened socket [%d:%d] to %d\n", sk->self_address, sk->self_port, sk->to_address);
         return 1;
     }
     else
@@ -79,8 +82,8 @@ int8_t close(OstSocket *const sk)
 
 int8_t send(OstSocket *const sk, OstSegment *seg)
 {
-    if(sk->mode == OPEN) {
-        debug_printf("socket must be in open state\n");
+    if(sk->state != OPEN) {
+        debug_printf("socket[%d:%d] must be in open state\n", sk->self_address, sk->self_port);
         return -1; 
     }
 
@@ -100,8 +103,10 @@ int8_t send(OstSocket *const sk, OstSegment *seg)
         .payload = buff
     };
     set_flag(&sk->tx_buffer[sk->tx_window_top].header, DTA);
-
+    int8_t r = send_to_physical(sk, DTA, sk->tx_window_top);
+    if(r != 1) return -1;
     sk->tx_window_top = (sk->tx_window_top + 1) % WINDOW_SZ;
+    return 1;
 }
 
 int8_t receive(OstSocket *const sk, OstSegment *seg)
@@ -198,15 +203,17 @@ int8_t send_to_physical(OstSocket *const sk, const SegmentFlag t, const uint8_t 
             return -1;
 
         send_spw(sk->spw_layer, &sk->tx_buffer[seq_n]);
-        if (add_new_timer(&sk->queue, seq_n, DURATION_RETRANSMISSON) != 0)
+        debug_printf("packet sent\n");
+        if (add_new_timer(&sk->queue, seq_n, DURATION_RETRANSMISSON) != 1)
             return -1;
     }
-    return 0;
+    return 1;
 }
 
-void send_spw(void *spw_layer, OstSegment *seg)
+void send_spw(SWIC_SEND spw_layer, OstSegment *seg)
 {
-    swic_send_packege(SWIC0, seg, sizeof(OstSegmentHeader) + seg->header.payload_length);
+	debug_printf("SWIC%d starting transmission\n", spw_layer);
+    swic_send_packege(spw_layer, seg, sizeof(OstSegmentHeader) + seg->header.payload_length);
 }
 
 void send_to_application(OstSocket *const sk, OstSegment *seg)
@@ -241,5 +248,19 @@ int8_t tx_sliding_window_have_space(const OstSocket* const sk)
     else
     {
         return WINDOW_SZ - sk->tx_window_top + 1 + sk->tx_window_bottom < WINDOW_SZ;
+    }
+}
+
+void init_socket(OstSocket* const sk)
+{
+    sk->to_retr = 0;
+    sk->tx_window_top = 0;
+    sk->tx_window_bottom = 0;
+    sk->rx_window_top = 0;
+    sk->rx_window_bottom = 0;
+    uint8_t i;
+    for(i = 0; i < WINDOW_SZ; ++i)
+    {
+        sk->acknowledged[i] = 0;
     }
 }

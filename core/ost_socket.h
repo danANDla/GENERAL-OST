@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include "ost_segment.h"
 #include "timer_fifo.h"
+#include "../../swic.h"
 
 static const micros_t DURATION_RETRANSMISSON = 2000000; // 2 secs
 
@@ -12,7 +13,7 @@ static const micros_t DURATION_RETRANSMISSON = 2000000; // 2 secs
 
 enum TransportLayerEvent;
 
-typedef enum
+typedef enum SocketMode
 {
     CONNECTIONLESS = 0,
     CONNECTION_ACTIVE,
@@ -49,8 +50,9 @@ typedef struct OstSocket
     int8_t acknowledged[WINDOW_SZ];
     TimerFifo queue;
 
-    void (*application_receive_callback)(uint8_t, uint8_t, OstSegment *);
-    void* spw_layer;
+    void (*application_receive_callback) (uint8_t, uint8_t, OstSegment *);
+
+    SWIC_SEND spw_layer;
 } OstSocket;
 
 int8_t open(OstSocket* const sk, int8_t mode);

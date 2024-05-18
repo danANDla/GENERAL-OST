@@ -101,6 +101,7 @@ typedef struct {
     uint8_t window_sz;
     uint32_t timers_sum;
     uint32_t last_timer;
+    uint32_t interrupt_counter;
     // HardwareTimer* hw;
     void (*upper_handler) (uint8_t);
 } TimerFifo;
@@ -140,6 +141,6 @@ void print_timers(const TimerFifo* const q);
 int8_t get_number_of_timers(const TimerFifo *const q);
 int8_t queue_empty(const TimerFifo *const q);
 int8_t clean_queue(TimerFifo *const q);
-void init_hw_timer(TimerFifo* main_fi, int* int_counter);
+void init_hw_timer(TimerFifo* main_fi);
 
 #endif

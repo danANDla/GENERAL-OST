@@ -128,9 +128,9 @@ int8_t add_new_timer(TimerFifo* const q, uint8_t seq_n, const micros_t duration)
     print_timers(q);
     if(r != 0) return -1;
     if(to_set != 0) {
-        activate_timer(q, to_set);
+        return activate_timer(q, to_set);
     }
-    return 0;
+    return 1;
 }
 
 int8_t cancel_timer(TimerFifo* const q, uint8_t seq_n) {
@@ -177,11 +177,13 @@ void timer_interrupt_handler(int a) {
     #ifdef ON_MC30SF
 		if ( IT0.ITCSR.bits.EN ){
             debug_printf("Timer beps\n");
-            *int_counter += 1; //инкрементируем счетчик прерываний
             risc_it_stop();
-            if(*int_counter >= 3) {
+
+            *int_counter += 1;
+            if(*int_counter >= 10) {
                 risc_disable_interrupt(RISC_INT_IT0, 0);
             }
+
             else {
                 TimerFifo* q = main_timer_fifo;
                 uint8_t seq_n = q->data[q->tail].for_packet;
@@ -191,20 +193,23 @@ void timer_interrupt_handler(int a) {
                 if(r == 0 && to_set != 0) {
                     activate_timer(q, to_set);
                 }
+                q->upper_handler(seq_n);
             }
         }
     #endif // ON_MC30SF
 }
 
-void init_hw_timer(TimerFifo* main_fi, int* int_cnt) {
+void init_hw_timer(TimerFifo* main_fi) {
     #ifdef ON_MC30SF
         main_timer_fifo = main_fi;
-        int_counter = int_cnt;
+        int_counter = &main_fi->interrupt_counter;
         risc_set_interrupts_vector(int_t);
         risc_enable_interrupt(RISC_INT_IT0,0);
 //        enum ERL_ERROR error_status =
         		risc_register_interrupt(timer_interrupt_handler, RISC_INT_IT0);
-    #endif // ON_MC30SF
+        debug_printf("enabled timer interrupts\n");
+   	#endif // ON_MC30SF
+
 }
 
 void print_timers(const TimerFifo* const q) {

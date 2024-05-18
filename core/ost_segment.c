@@ -80,5 +80,6 @@ int8_t is_rst(const OstSegment *const seg)
 
 int8_t is_dta(const OstSegment *const seg)
 {
-    return seg->header.flags & 0b00000000 == 0;
+	debug_printf("flags %d, is_dta %d\n", seg->header.flags, (seg->header.flags & 0b00000111) == 0);
+    return (seg->header.flags & 0b00000111) == 0;
 }
