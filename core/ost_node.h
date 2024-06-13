@@ -21,7 +21,7 @@ enum SocketMode;
  */
 
 /**
- * @ingroup ost
+ * @ingroup OstNode
  * @enum TransportLayerEvent
  * @brief События которые обрабатываются транспортным уровнем.
  * @var TransportLayerEvent::PACKET_ARRIVED_FROM_NETWORK
@@ -39,9 +39,9 @@ typedef enum TransportLayerEvent
 } TransportLayerEvent;
 
 /**
- * \ingroup OstNode
- * \struct OstNode
- * \brief Представление узла на транспортном уровне.
+ * @ingroup OstNode
+ * @struct OstNode
+ * @brief Представление узла на транспортном уровне.
  *
  * Относится к одному интерфейсу SpaceWire.
  *
