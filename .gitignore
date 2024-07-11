@@ -1,8 +1,5 @@
-build
 .vscode
+doxydox
 debug
 payloads
 results
-bmp_util
-image
-doxydox

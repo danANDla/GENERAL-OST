@@ -2,15 +2,6 @@
 
 #include <string.h>
 
-int8_t peek_header(const SpWPacket *const packet, OstSegmentHeader *const header)
-{
-    if (packet->sz < sizeof(OstSegmentHeader))
-        return -1;
-    if (memcpy(header, packet->data, sizeof(OstSegmentHeader)) != sizeof(OstSegmentHeader))
-        return -1;
-    return 0;
-}
-
 int8_t data_to_ost_segment(OstSegment *const seg, void *data, uint8_t sz)
 {
     return 1;

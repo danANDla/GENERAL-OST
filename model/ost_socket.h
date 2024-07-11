@@ -1,14 +1,20 @@
 #ifndef OST_SOCKET_H
 #define OST_SOCKET_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <inttypes.h>
 #include "ost_segment.h"
 #include "timer_fifo.h"
-#include "swic.h"
+#include "data_fifo.h"
 
 static const micros_t DURATION_RETRANSMISSON = 1000; // 1 secs
 
 #define WINDOW_SZ 10
+#define MAX_SEQ_N 255
 
 enum TransportLayerEvent;
 
@@ -124,6 +130,7 @@ typedef enum
 
 typedef struct OstSocket
 {
+    uint8_t is_occupied;
     struct OstNode *ost;
     /* data */
     SocketMode mode;
@@ -140,11 +147,13 @@ typedef struct OstSocket
     OstSegment tx_window[WINDOW_SZ];
     OstSegment rx_window[WINDOW_SZ];
     int8_t acknowledged[WINDOW_SZ];
+    int8_t received[WINDOW_SZ];
     TimerFifo queue;
+    DataFifo data;
 
     int8_t verified_received;
     void (*application_receive_callback)(uint8_t, uint8_t, OstSegment *);
-    SWIC_SEND spw_layer;
+    uint8_t spw_layer; // SWIC_SEND
 } OstSocket;
 
 /**
@@ -155,7 +164,7 @@ typedef struct OstSocket
  * @param mode режим сокета
  * @returns 1 в случае успешного выполнения.
  */
-int8_t open(OstSocket *const sk, int8_t mode);
+int8_t open(OstSocket *const sk, SocketMode mode);
 
 /**
  * @relates OstSocket
@@ -200,15 +209,8 @@ int8_t receive(OstSocket *const sk, OstSegment *seg);
  */
 int8_t socket_event_handler(OstSocket *const sk, const enum TransportLayerEvent e, OstSegment *seg, uint8_t seq_n);
 
-/**
- * @relates OstSocket
- * @fn add_to_tx(OstSocket *const sk, const OstSegment *const seg, uint8_t *const seq_n)
- * @brief Добавить пакет в очередь для отправки
- * @param sk Сокет
- * @param seg Указатель на сегмент который будет отправлен
- * @param seq_n Номер который присвоен пакету
- * @returns 1 в случае успешного выполнения.
- */
-int8_t add_to_tx(OstSocket *const sk, const OstSegment *const seg, uint8_t *const seq_n);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

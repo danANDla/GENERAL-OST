@@ -1,10 +1,13 @@
 #ifndef OST_SEGMENT_H
 #define OST_SEGMENT_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <inttypes.h>
 #include <stdbool.h>
-
-#include "spw_packet.h"
 
 typedef uint8_t FlagOctet;
 
@@ -31,8 +34,6 @@ typedef struct OstSegment
 } OstSegment;
 
 int8_t data_to_ost_segment(OstSegment *const seg, void *data, uint8_t sz);
-int8_t spw_packet_to_ost_segment(const SpWPacket *const packet, OstSegment *const seg);
-int8_t peek_header(const SpWPacket *const packet, OstSegmentHeader *const header);
 void print_header(const OstSegmentHeader* const header);
 
 void set_seq_number(OstSegment *const header, uint8_t);
@@ -53,5 +54,10 @@ int8_t is_rst(const OstSegment* const header);
 int8_t is_dta(const OstSegment* const header);
 
 void segment_type_name(SegmentFlag t);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,11 @@
 #ifndef OST_NODE_H
 #define OST_NODE_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <inttypes.h>
 
 #include "timer_fifo.h"
@@ -35,7 +40,8 @@ typedef enum TransportLayerEvent
 {
     PACKET_ARRIVED_FROM_NETWORK = 0,
     APPLICATION_PACKET_READY,
-    RETRANSMISSION_INTERRUPT
+    RETRANSMISSION_INTERRUPT,
+    SPW_READY
 } TransportLayerEvent;
 
 /**
@@ -124,5 +130,10 @@ int8_t close_connection(OstNode *const node, uint8_t address);
  * @returns 1 в случае успешного выполнения.
  */
 int8_t send_packet(OstNode *const node, int8_t address, const uint8_t *buffer, uint32_t size);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // OST_NODE_H

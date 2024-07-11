@@ -1,19 +1,17 @@
 #include "timer_fifo.h"
 
-#define ON_MC30SF
 #ifdef ON_MC30SF
 #include "risc_timer.h"
 #include "cpu.h"
 #include "risc_interrupt.h"
 #include "system.h"
-#endif
 
 #if defined(TARGET_MC24R) || defined(TARGET_MC30SF6) || defined(TARGET_NVCOM02T)
 RISC_INTERRUPT_TYPE int_t = INTH_80000180;
 #else
 RISC_INTERRUPT_TYPE int_t = INTH_B8000180;
 #endif
-
+#endif
 
 void move_head(TimerFifo *const q);
 void rmove_head(TimerFifo *const q);
@@ -61,7 +59,7 @@ int8_t get_number_of_timers(const TimerFifo *const q)
 
 int8_t push_timer(TimerFifo *const q, const uint8_t seq_n, const uint32_t duration_tics, uint32_t *const duration_to_set)
 {
-    if (!is_queue_have_space(q))
+    if (!is_queue_have_space(q) || duration_tics > MAX_TIMER_DURATION)
     {
         return -1;
     }
@@ -72,12 +70,11 @@ int8_t push_timer(TimerFifo *const q, const uint8_t seq_n, const uint32_t durati
     }
     else
     {
-        uint32_t left = get_hard_timer_left_tics(q);
+        micros_t left = get_hard_timer_left_time();
         q->data[q->head] = (Timer){.for_packet = seq_n, .tics = duration_tics - left - q->timers_sum};
         q->timers_sum += q->data[q->head].tics;
         *duration_to_set = 0;
     }
-    uint32_t r = q->data[q->head].tics;
     move_head(q);
     return 1;
 }
@@ -91,16 +88,14 @@ int8_t pop_timer(TimerFifo *const q, const uint8_t seq_n, uint32_t *const durati
 
     if (seq_n == q->data[q->tail].for_packet)
     {
-        if (((q->tail > q->head) && q->tail == Q_SZ && q->head == 0) || q->head - q->tail == 1)
+        if (((q->tail > q->head) && q->tail == Q_SZ && q->head == 0) || ((q->tail < q->head) && q->head - q->tail == 1))
         {
             move_tail(q);
             *duration_to_set = 0;
         }
         else
         {
-            uint32_t r = get_hard_timer_left_tics(q);
-            if ((ITCSR0 & 2) == 2)
-                r = 0;
+            micros_t r = get_hard_timer_left_time();
             move_tail(q);
             q->timers_sum -= q->data[q->tail].tics;
             q->data[q->tail].tics += r;
@@ -118,7 +113,7 @@ int8_t pop_timer(TimerFifo *const q, const uint8_t seq_n, uint32_t *const durati
         if (t_id == q->head)
             return -1;
 
-        uint32_t r = q->data[t_id].tics;
+        micros_t r = q->data[t_id].tics;
         uint8_t i = t_id;
         while ((i + 1) % (Q_SZ + 1) != q->head)
         {
@@ -147,7 +142,7 @@ int8_t add_new_timer(TimerFifo *const q, uint8_t seq_n, const micros_t duration)
 {
     uint32_t to_set;
     int8_t r = push_timer(q, seq_n, tics_from_micros(duration), &to_set);
-    if (r != 0)
+    if (r != 1)
         return -1;
     if (to_set != 0)
     {
@@ -158,10 +153,10 @@ int8_t add_new_timer(TimerFifo *const q, uint8_t seq_n, const micros_t duration)
 
 int8_t cancel_timer(TimerFifo *const q, const uint8_t seq_n)
 {
-    int8_t was_in_hw = seq_n == q->data[q->tail].tics;
+    int8_t was_in_hw = seq_n == q->data[q->tail].for_packet;
     uint32_t to_set;
     int8_t r = pop_timer(q, seq_n, &to_set);
-    if (r != 0)
+    if (r != 1)
         return -1;
 
     if (was_in_hw)
@@ -178,45 +173,48 @@ int8_t cancel_timer(TimerFifo *const q, const uint8_t seq_n)
 
 void timer_interrupt_handler(int a)
 {
-
 }
 
 int8_t activate_timer(TimerFifo *const q, const uint32_t tics)
 {
-    if (q->fifo_id == 0)
-    {
-        ITSCALE0 = 0;
-        ITPERIOD0 = tics;
-        ITCSR0 = (2 << 3);
-        ITCSR0 |= 1;
-        risc_enable_interrupt(RISC_INT_IT0, 0);
-    }
-    else
-    {
-        ITSCALE1 = 0;
-        ITPERIOD1 = tics;
-        ITCSR1 = (2 << 3);
-        ITCSR1 |= 1;
-        risc_enable_interrupt(RISC_INT_IT1, 0);
-    }
+#ifdef ON_MC30SF
+    ITSCALE = 0;
+    ITPERIOD = tics;
+    ITCSR = (2 << 3);
+    ITCSR |= 1;
+    risc_enable_interrupt(RISC_INT_IT, 0);
     q->last_timer = tics;
+#elif ON_NS3
+    q->last_timer.e_id = Simulator::Schedule(
+        MicroSeconds(duration),
+        &TimerFifo::timer_interrupt_handler,
+        this);
+    q->last_timer.val = tics;
+#endif
     return 1;
 }
 
 uint32_t get_hard_timer_left_tics(const TimerFifo *const q)
 {
-    if (q->fifo_id == 0)
-        return ITCOUNT0;
-    else
-        return ITCOUNT1;
+#ifdef ON_MC30SF
+    return ITCOUNT;
+#elif ON_NS3
+    int64_t nanos = Simulator::GetDelayLeft(q->last_timer.e_id).GetNanoSeconds();
+    int64_t micros = Simulator::GetDelayLeft(q->last_timer.e_id).GetMicroSeconds();
+    if (nanos)
+        return micros + 1;
+    return micros;
+#endif
+    return 0;
 }
 
 void hw_timer_stop(TimerFifo *const q)
 {
-    if (q->fifo_id == 0)
-        ITCSR0 &= 0xfe;
-    else
-        ITCSR1 &= 0xfe;
+    #ifdef ON_MC30SF
+        ITCSR &= 0xfe;
+    #elif ON_NS3
+        Simulator::Cancel(q->last_timer.e_id);
+    #endif
 }
 
 void print_timers(const TimerFifo *const q)
@@ -263,40 +261,42 @@ int8_t clean_queue(TimerFifo *const q)
         q->data[i] = (Timer){.tics = 0, .for_packet = 0};
 }
 
+#ifdef ON_MC30SF
 int rtc_timer_counter = 0;
 void rtc_timer_handler(int a)
 {
-	if ( (WTCSR & 0xfdff) == 2 ){
-		WTCSR |= (1 << 8); 	// start timer
-	}
-	rtc_timer_counter += 1;
+    if ((WTCSR & 0xfdff) == 2)
+    {
+        WTCSR |= (1 << 8); // start timer
+    }
+    rtc_timer_counter += 1;
 }
 
 void rtc_timer_start()
 {
-	WTCSR &= 0xfeff; 	// disable timer
-	WTCSR |= (1 << 10); 	// switch to itm
+    WTCSR &= 0xfeff;    // disable timer
+    WTCSR |= (1 << 10); // switch to itm
 
-	risc_enable_interrupt(RISC_INT_WDT, 0);
-	risc_register_interrupt(rtc_timer_handler, RISC_INT_WDT);
+    risc_enable_interrupt(RISC_INT_WDT, 0);
+    risc_register_interrupt(rtc_timer_handler, RISC_INT_WDT);
 
-	WTSCALE = 0;
-	WTPERIOD = 0xffffffff;
-	WTCSR |= (1 << 8); 	// start timer
+    WTSCALE = 0;
+    WTPERIOD = 0xffffffff;
+    WTCSR |= (1 << 8); // start timer
 }
 
 void rtc_timer_print_elapsed()
 {
-//	debug_printf("%u interrupts, %u tics in timer\n", timer_counter, ITCOUNT0);
-//	debug_printf("%u tics processed \n", 0xffffffff - ITCOUNT0);
-	float ms = ((float) (0xffffffff - WTCOUNT) * 1000 + (float) rtc_timer_counter * 0xffffffff) / (float) get_cpu_clock() ;
-	debug_printf("%.2f milliseconds, %u tics, %u interrupts\n", ms, 0xffffffff - WTCOUNT, rtc_timer_counter);
+    //	debug_printf("%u interrupts, %u tics in timer\n", timer_counter, ITCOUNT0);
+    //	debug_printf("%u tics processed \n", 0xffffffff - ITCOUNT0);
+    float ms = ((float)(0xffffffff - WTCOUNT) * 1000 + (float)rtc_timer_counter * 0xffffffff) / (float)get_cpu_clock();
+    debug_printf("%.2f milliseconds, %u tics, %u interrupts\n", ms, 0xffffffff - WTCOUNT, rtc_timer_counter);
 }
 
 void rtc_timer_stop()
 {
-	WTCSR &= 0xfeff;
-	rtc_timer_print_elapsed();
-	risc_disable_interrupt(RISC_INT_WDT, 0);
+    WTCSR &= 0xfeff;
+    rtc_timer_print_elapsed();
+    risc_disable_interrupt(RISC_INT_WDT, 0);
 }
-
+#endif
