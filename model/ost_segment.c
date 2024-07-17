@@ -1,7 +1,5 @@
 #include "ost_segment.h"
 
-#include <string.h>
-
 int8_t data_to_ost_segment(OstSegment *const seg, void *data, uint8_t sz)
 {
     return 1;

@@ -19,8 +19,8 @@ typedef struct DataFifo{
 
 int8_t data_fifo_enqueue(DataFifo* const fifo, const OstSegment* const seg);
 int8_t data_fifo_dequeue(DataFifo* const fifo);
-int8_t data_fifo_empty(DataFifo* const fifo);
-int8_t data_fifo_peek(DataFifo* const fifo, OstSegment** const seg);
+int8_t data_fifo_is_empty(const DataFifo* const fifo);
+int8_t data_fifo_peek(const DataFifo* const fifo, OstSegment** const seg);
 
 #ifdef __cplusplus
 }

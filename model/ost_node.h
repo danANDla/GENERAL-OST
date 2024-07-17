@@ -10,6 +10,8 @@ extern "C"
 
 #include "timer_fifo.h"
 #include "ost_segment.h"
+#include "ost_socket.h"
+#include "../swic.h"
 
 #define PORTS_NUMBER 1
 
@@ -62,12 +64,16 @@ typedef enum TransportLayerEvent
  * @var OstNode::that_arrived
  * Указатель на сегмент транспортного уровня который был получен из сети. Буферизация сегмента
  * перед обработкой сокетом.
+ * 
+ * @var OstNode::spw_layer
+ * Физический интерфейс который привязан к сокету
  */
 typedef struct OstNode
 {
     uint8_t self_address;
-    struct OstSocket *ports[PORTS_NUMBER];
+    struct OstSocket ports[PORTS_NUMBER];
     OstSegment *that_arrived;
+    SWIC_SEND spw_layer; // SWIC_SEND
 } OstNode;
 
 /**

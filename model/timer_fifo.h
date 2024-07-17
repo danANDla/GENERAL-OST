@@ -111,7 +111,28 @@ extern "C"
  * @var TimerFifo::fifo_id
  * Идентификатор очереди таймеров. Одна очередь обслуживается одним аппаратным таймером.
  */
-#ifndef ON_NS3
+#if (defined(TARGET_NS3))
+	#include "ns3/event-id.h"
+	#include "ns3/callback.h"
+
+	typedef struct
+	{
+		/* data */
+		uint32_t val;
+		EventId e_id;
+	} NS3_TIMER;
+
+	typedef struct
+	{
+		Timer data[Q_SZ + 1];
+		uint8_t head;
+		uint8_t tail;
+		uint32_t timers_sum;
+		NS3_TIMER last_timer;
+		uint32_t interrupt_counter;
+		uint8_t fifo_id;
+	} TimerFifo;
+#else
     typedef struct
     {
         Timer data[Q_SZ + 1];
@@ -122,28 +143,9 @@ extern "C"
         uint32_t interrupt_counter;
         uint8_t fifo_id;
     } TimerFifo;
-#elif
-    #include "ns3/event-id.h"
-    #include "ns3/callback.h"
-
-    typedef struct
-    {
-        /* data */
-        uint32_t val;
-        EventId e_id;
-    } NS3_TIMER;
-    
-    typedef struct
-    {
-        Timer data[Q_SZ + 1];
-        uint8_t head;
-        uint8_t tail;
-        uint32_t timers_sum;
-        NS3_TIMER last_timer;
-        uint32_t interrupt_counter;
-        uint8_t fifo_id;
-    } TimerFifo;
 #endif
+
+    void init_timer_queue(TimerFifo *const q);
 
     /**
      * @relates TimerFifo
@@ -211,7 +213,6 @@ extern "C"
      */
     void print_timers(const TimerFifo *const q);
 
-    void init_timer_queue(TimerFifo *const q);
 
     /**
      * @relates TimerFifo

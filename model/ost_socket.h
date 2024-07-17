@@ -123,9 +123,6 @@ typedef enum
  * 
  * @var OstSocket::queue
  * Очередь таймеров
- * 
- * @var OstSocket::spw_layer
- * Физический интерфейс который привязан к сокету
  */
 
 typedef struct OstSocket
@@ -153,7 +150,6 @@ typedef struct OstSocket
 
     int8_t verified_received;
     void (*application_receive_callback)(uint8_t, uint8_t, OstSegment *);
-    uint8_t spw_layer; // SWIC_SEND
 } OstSocket;
 
 /**

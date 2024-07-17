@@ -1,7 +1,6 @@
 #include "ost_node.h"
 #include "ost_socket.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include "spw_layer.h"
 
 /**
  * @relates OstNode
@@ -29,7 +28,13 @@ int8_t occupy_socket(OstNode *const node, uint8_t address);
 int8_t
 start(OstNode *const node, uint8_t hw_timer_id)
 {
-    return 0;
+    return spw_hw_init();
+}
+
+void
+shutdown(OstNode *const node)
+{
+
 }
 
 int8_t event_handler(OstNode *const node, const TransportLayerEvent e)
@@ -39,7 +44,7 @@ int8_t event_handler(OstNode *const node, const TransportLayerEvent e)
     case PACKET_ARRIVED_FROM_NETWORK:
         if (node->that_arrived)
         {
-            socket_event_handler(node->ports[0], PACKET_ARRIVED_FROM_NETWORK, node->that_arrived, 0);
+            socket_event_handler(&node->ports[0], PACKET_ARRIVED_FROM_NETWORK, node->that_arrived, 0);
         }
         break;
     case APPLICATION_PACKET_READY:
@@ -58,18 +63,18 @@ int8_t open_connection(OstNode *const node, uint8_t address, int8_t mode)
     }
 
     OstSocket *sk;
-    int8_t r = GetSocket(node, address, &sk);
+    int8_t r = get_socket_by_address(node, address, &sk);
     if (r != 1) // create new
     {
-        r = AggregateSocket(node, address);
+        r = occupy_socket(node, address);
         if (r != -1)
-            return open(node->ports[r], CONNECTIONLESS);
+            return open(&node->ports[r], CONNECTIONLESS);
     }
     else
     {
-        if (get_socket_state(sk) == OPEN)
+        if (sk->state == OPEN)
             return 0; // already opened
-        return (sk, CONNECTIONLESS);
+        return open(sk, CONNECTIONLESS);
     }
     return 1;
 }
@@ -79,11 +84,12 @@ int8_t close_connection(OstNode *const node, uint8_t address)
     if (address == node->self_address)
         return -1;
 
-    for (int i = 0; i < PORTS_NUMBER; ++i)
+    int i;
+    for (i = 0; i < PORTS_NUMBER; ++i)
     {
-        if (node->ports[i]->to_address == address)
+        if (node->ports[i].to_address == address)
         {
-            close(node->ports[i]);
+            close(&node->ports[i]);
             return 1;
         }
     }
@@ -92,20 +98,22 @@ int8_t close_connection(OstNode *const node, uint8_t address)
 
 int8_t send_packet(OstNode *const node, int8_t address, const uint8_t *buffer, uint32_t size)
 {
-    if (node->ports[0]->to_address != address || node->ports[0]->state != OPEN)
+    if (node->ports[0].to_address != address || node->ports[0].state != OPEN)
         return -1;
-    return send(node->ports[0], buffer, size);
+    return send(&node->ports[0], buffer, size);
 }
 
 int8_t
 occupy_socket(OstNode *const node, uint8_t address)
 {
-    for (int i = 0; i < PORTS_NUMBER; ++i)
+	int i = 0;
+	for (i = 0; i < PORTS_NUMBER; ++i)
     {
-        if (!node->ports[i]->is_occupied)
+        if (!node->ports[i].is_occupied)
         {
-            node->ports[i]->to_address = address;
-            node->ports[i]->is_occupied = 1;
+            node->ports[i].to_address = address;
+            node->ports[i].is_occupied = 1;
+            node->ports->ost = node;
             return i;
         }
     }
@@ -115,11 +123,12 @@ occupy_socket(OstNode *const node, uint8_t address)
 int8_t
 get_socket_by_address(OstNode *const node, uint8_t address, OstSocket **sk)
 {
-    for (int i = 0; i < PORTS_NUMBER; ++i)
+	int i = 0;
+    for (i = 0; i < PORTS_NUMBER; ++i)
     {
-        if (node->ports[i]->is_occupied && node->ports[i]->to_address == address)
+        if (node->ports[i].is_occupied && node->ports[i].to_address == address)
         {
-            *sk = node->ports[i];
+            *sk = &node->ports[i];
             return 1;
         }
     }

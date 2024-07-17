@@ -1,13 +1,12 @@
 #ifndef OST_SEGMENT_H
 #define OST_SEGMENT_H
 
+#include <inttypes.h>
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-#include <inttypes.h>
-#include <stdbool.h>
 
 typedef uint8_t FlagOctet;
 

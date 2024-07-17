@@ -1,16 +1,13 @@
 #include "timer_fifo.h"
 
-#ifdef ON_MC30SF
-#include "risc_timer.h"
-#include "cpu.h"
-#include "risc_interrupt.h"
-#include "system.h"
+#if (defined(TARGET_MC30SF6))
+#include "../risc_timer.h"
+#include "../cpu.h"
+#include "../risc_interrupt.h"
+#include "../system.h"
+#include "../debug_printf.h"
 
-#if defined(TARGET_MC24R) || defined(TARGET_MC30SF6) || defined(TARGET_NVCOM02T)
 RISC_INTERRUPT_TYPE int_t = INTH_80000180;
-#else
-RISC_INTERRUPT_TYPE int_t = INTH_B8000180;
-#endif
 #endif
 
 void move_head(TimerFifo *const q);
@@ -26,6 +23,7 @@ int8_t push_timer(TimerFifo *const q, const uint8_t seq_n, const uint32_t durati
 int8_t pop_timer(TimerFifo *const q, const uint8_t seq_n, uint32_t *const durtaion_to_set);
 
 uint32_t get_hard_timer_left_tics(const TimerFifo *const q);
+
 
 void move_head(TimerFifo *const q)
 {
@@ -70,7 +68,7 @@ int8_t push_timer(TimerFifo *const q, const uint8_t seq_n, const uint32_t durati
     }
     else
     {
-        micros_t left = get_hard_timer_left_time();
+        micros_t left = get_hard_timer_left_tics(q);
         q->data[q->head] = (Timer){.for_packet = seq_n, .tics = duration_tics - left - q->timers_sum};
         q->timers_sum += q->data[q->head].tics;
         *duration_to_set = 0;
@@ -95,7 +93,7 @@ int8_t pop_timer(TimerFifo *const q, const uint8_t seq_n, uint32_t *const durati
         }
         else
         {
-            micros_t r = get_hard_timer_left_time();
+            micros_t r = get_hard_timer_left_tics(q);
             move_tail(q);
             q->timers_sum -= q->data[q->tail].tics;
             q->data[q->tail].tics += r;
@@ -138,6 +136,11 @@ uint32_t tics_from_micros(const micros_t ms)
     return ms * TIMER_MIN_STEP;
 }
 
+
+void init_timer_queue(TimerFifo *const q) {
+
+}
+
 int8_t add_new_timer(TimerFifo *const q, uint8_t seq_n, const micros_t duration)
 {
     uint32_t to_set;
@@ -177,14 +180,14 @@ void timer_interrupt_handler(int a)
 
 int8_t activate_timer(TimerFifo *const q, const uint32_t tics)
 {
-#ifdef ON_MC30SF
-    ITSCALE = 0;
-    ITPERIOD = tics;
-    ITCSR = (2 << 3);
-    ITCSR |= 1;
-    risc_enable_interrupt(RISC_INT_IT, 0);
+#if (defined(TARGET_MC30SF6))
+    ITSCALE0 = 0;
+    ITPERIOD0 = tics;
+    ITCSR0 = (2 << 3);
+    ITCSR0 |= 1;
+    risc_enable_interrupt(RISC_INT_IT0, 0);
     q->last_timer = tics;
-#elif ON_NS3
+#elif (defined(TARGET_NS3))
     q->last_timer.e_id = Simulator::Schedule(
         MicroSeconds(duration),
         &TimerFifo::timer_interrupt_handler,
@@ -196,9 +199,9 @@ int8_t activate_timer(TimerFifo *const q, const uint32_t tics)
 
 uint32_t get_hard_timer_left_tics(const TimerFifo *const q)
 {
-#ifdef ON_MC30SF
-    return ITCOUNT;
-#elif ON_NS3
+#if (defined(TARGET_MC30SF6))
+    return ITCOUNT0;
+#elif (defined(TARGET_NS3))
     int64_t nanos = Simulator::GetDelayLeft(q->last_timer.e_id).GetNanoSeconds();
     int64_t micros = Simulator::GetDelayLeft(q->last_timer.e_id).GetMicroSeconds();
     if (nanos)
@@ -210,9 +213,9 @@ uint32_t get_hard_timer_left_tics(const TimerFifo *const q)
 
 void hw_timer_stop(TimerFifo *const q)
 {
-    #ifdef ON_MC30SF
-        ITCSR &= 0xfe;
-    #elif ON_NS3
+#if (defined(TARGET_MC30SF6))
+        ITCSR0 &= 0xfe;
+#elif (defined(TARGET_NS3))
         Simulator::Cancel(q->last_timer.e_id);
     #endif
 }
@@ -261,7 +264,7 @@ int8_t clean_queue(TimerFifo *const q)
         q->data[i] = (Timer){.tics = 0, .for_packet = 0};
 }
 
-#ifdef ON_MC30SF
+#if (defined(TARGET_MC30SF6))
 int rtc_timer_counter = 0;
 void rtc_timer_handler(int a)
 {
