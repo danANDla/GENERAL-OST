@@ -48,7 +48,6 @@ int8_t full_states_handler(seg)
 
 int8_t send_to_application(OstSocket* const sk, const OstSegment *const seg)
 {
-    debug_printf("received packet\n");
     if(VerifyArray(seg->payload, 0, seg->header.payload_length, seg->header.seq_number)) sk->verified_received++;
     return 0;
 }
@@ -122,11 +121,9 @@ int8_t send(OstSocket *const sk, const uint8_t *buffer, uint32_t size)
     	.payload = buffer
     };
     set_flag(&segment, DTA);
-
-    data_fifo_enqueue(&sk->data, &segment);
-
-    peek_from_transmit_fifo(sk);
-    return 1;
+    int r = data_fifo_enqueue(&sk->data, &segment);
+    if(r != 1) return -1;
+    return peek_from_transmit_fifo(sk);
 }
 
 int8_t peek_from_transmit_fifo(OstSocket *const sk)
@@ -273,10 +270,13 @@ mark_packet_receipt(OstSocket *const sk, uint8_t seq_n, const OstSegment *const 
     if (!sk->received[seq_n])
     {
         sk->received[seq_n] = 1;
-        sk->rx_window[seq_n] = *p; // copy
+        sk->rx_window[seq_n].header = p->header;
+        sk->rx_window[seq_n].payload = malloc(p->header.payload_length);
+        memcpy(sk->rx_window[seq_n].payload, p->payload, p->header.payload_length);
         while (sk->received[sk->rx_window_bottom])
         {
             send_to_application(sk, &sk->rx_window[sk->rx_window_bottom]);
+            free(sk->rx_window[sk->rx_window_bottom].payload);
             sk->received[sk->rx_window_top] = 0;
             sk->rx_window_bottom = (sk->rx_window_bottom + 1) % MAX_SEQ_N;
             sk->rx_window_top = (sk->rx_window_top + 1) % MAX_SEQ_N;
@@ -287,10 +287,9 @@ mark_packet_receipt(OstSocket *const sk, uint8_t seq_n, const OstSegment *const 
 
 int8_t socket_send_spw(OstSocket *const sk, const OstSegment *const p)
 {
-
     uint8_t address_size = 0;
     uint8_t* address_buffer;
-    unsigned char src[64 * 1024 + 6] __attribute__((aligned(8))) = {
+    unsigned char src[64 * 1024] __attribute__((aligned(8))) = {
         0,
     };
     if (address_size > 0)
@@ -302,6 +301,7 @@ int8_t socket_send_spw(OstSocket *const sk, const OstSegment *const p)
     memcpy(address_size + src, p, sizeof(OstSegmentHeader));
     memcpy(address_size + src + sizeof(OstSegmentHeader), p->payload, p->header.payload_length);
     int8_t r = spw_send_data(sk->ost->spw_layer, src, address_size + sizeof(OstSegmentHeader) + p->header.payload_length);
+
     return r;
 }
 

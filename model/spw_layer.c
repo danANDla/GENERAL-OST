@@ -11,11 +11,11 @@ int8_t spw_send_data(
     const uint32_t data_size)
 {
 #if (defined(TARGET_MC30SF6))
-    swic_send_packege(interface, data_buffer, data_size);
+    return swic_send_packege(interface, data_buffer, data_size);
 #elif ON_NS3
     Mac8Address addr;
     addr.CopyFrom(&to_address);
-    spw_layer->Send(segment, addr, 0);
+    return spw_layer->Send(segment, addr, 0);
 #endif
 }
 
@@ -66,4 +66,5 @@ int8_t spw_hw_init()
 
 	debug_printf("OST 0 RX_SPEED: %x \n", swic_get_rx_speed(0));
 	debug_printf("OST 1 RX_SPEED: %x \n", swic_get_rx_speed(1));
+	return 1;
 }

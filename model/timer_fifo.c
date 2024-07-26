@@ -17,7 +17,6 @@ int8_t is_queue_have_space(const TimerFifo *const q);
 int8_t get_number_of_timers(const TimerFifo *const q);
 int8_t activate_timer(TimerFifo *const q, const uint32_t duration);
 void hw_timer_stop(TimerFifo *const q);
-int8_t is_queue_have_space(const TimerFifo *const q);
 
 int8_t push_timer(TimerFifo *const q, const uint8_t seq_n, const uint32_t duration, uint32_t *const duration_to_set);
 int8_t pop_timer(TimerFifo *const q, const uint8_t seq_n, uint32_t *const durtaion_to_set);
