@@ -53,7 +53,7 @@ int8_t send_to_application(OstSocket* const sk, const OstSegment *const seg)
 }
 
 int8_t
-open(OstSocket *const sk, SocketMode sk_mode)
+scoket_open(OstSocket *const sk, SocketMode sk_mode)
 {
     sk->mode = sk_mode;
     if (sk->mode == CONNECTIONLESS)
@@ -71,7 +71,7 @@ open(OstSocket *const sk, SocketMode sk_mode)
 }
 
 int8_t
-close(OstSocket *const sk)
+socket_close(OstSocket *const sk)
 {
     if (sk->mode != CONNECTIONLESS)
     {

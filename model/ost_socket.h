@@ -7,6 +7,7 @@ extern "C"
 #endif
 
 #include <inttypes.h>
+#include "ost_common.h"
 #include "ost_segment.h"
 #include "timer_fifo.h"
 #include "data_fifo.h"
@@ -15,8 +16,6 @@ static const micros_t DURATION_RETRANSMISSON = 1000; // 1 secs
 
 #define WINDOW_SZ 10
 #define MAX_SEQ_N 255
-
-enum TransportLayerEvent;
 
 /**
  * @ingroup ost
@@ -154,22 +153,22 @@ typedef struct OstSocket
 
 /**
  * @relates OstSocket
- * @fn open(OstSocket *const sk, int8_t mode)
+ * @fn socket_open(OstSocket *const sk, int8_t mode)
  * @brief Открыть сокет, выполнить подключение
  * @param sk Сокет
  * @param mode режим сокета
  * @returns 1 в случае успешного выполнения.
  */
-int8_t open(OstSocket *const sk, SocketMode mode);
+int8_t socket_open(OstSocket *const sk, SocketMode mode);
 
 /**
  * @relates OstSocket
- * @fn close(OstSocket *const sk)
+ * @fn socket_close(OstSocket *const sk)
  * @brief Закрыть сокет, выполнить разрыв соединения
  * @param sk Сокет
  * @returns 1 в случае успешного выполнения.
  */
-int8_t close(OstSocket *const sk);
+int8_t socket_close(OstSocket *const sk);
 
 /**
  * @relates OstSocket

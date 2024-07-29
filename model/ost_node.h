@@ -9,9 +9,9 @@ extern "C"
 #include <inttypes.h>
 
 #include "timer_fifo.h"
+#include "ost_common.h"
 #include "ost_segment.h"
 #include "ost_socket.h"
-#include "../swic.h"
 
 #define PORTS_NUMBER 1
 
@@ -27,24 +27,6 @@ enum SocketMode;
  * \defgroup OstNode
  */
 
-/**
- * @ingroup OstNode
- * @enum TransportLayerEvent
- * @brief События которые обрабатываются транспортным уровнем.
- * @var TransportLayerEvent::PACKET_ARRIVED_FROM_NETWORK
- * получен пакета интерфейсом SpaceWire
- * @var TransportLayerEvent::APPLICATION_PACKET_READY
- * готов пакет для отправки
- * @var TransportLayerEvent::RETRANSMISSION_INTERRUPT
- * прерывание аппаратного таймера
- */
-typedef enum TransportLayerEvent
-{
-    PACKET_ARRIVED_FROM_NETWORK = 0,
-    APPLICATION_PACKET_READY,
-    RETRANSMISSION_INTERRUPT,
-    SPW_READY
-} TransportLayerEvent;
 
 /**
  * @ingroup OstNode
